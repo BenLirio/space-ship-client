@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
+import { SplashScene } from "./scenes/SplashScene";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -16,7 +17,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [MainScene],
+  scene: [SplashScene, MainScene],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -3,15 +3,12 @@ import Phaser from "phaser";
 // Input structure for arcade movement
 export interface ArcadeInput {
   cursors: Phaser.Types.Input.Keyboard.CursorKeys; // retained though not heavily used here
-  keys: Record<string, Phaser.Input.Keyboard.Key>; // W A D SHIFT SPACE
+  keys: Record<string, Phaser.Input.Keyboard.Key>; // W A D
 }
 
 export interface MovementConfig {
-  baseSpeed: number; // forward speed when holding W
-  boostMultiplier: number; // shift multiplier
-  rotationSpeed: number; // radians per second for A/E
-  dashSpeed: number; // dash velocity magnitude
-  dashCooldownMs: number; // dash cooldown
+  baseSpeed: number; // forward speed when holding W or joystick
+  rotationSpeed: number; // radians per second for A/D (desktop)
 }
 
 export function preloadShip(scene: Phaser.Scene) {
@@ -92,8 +89,6 @@ export async function loadExternalShipTexture(
   });
 }
 
-let lastDashTime = 0;
-
 export function updateShip(
   scene: Phaser.Scene,
   ship: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
@@ -113,8 +108,7 @@ export function updateShip(
 
   // Forward thrust (no inertia heavy sim) when W is held
   const forwardHeld = keys.W?.isDown;
-  const boosting = keys.SHIFT?.isDown;
-  const speed = cfg.baseSpeed * (boosting ? cfg.boostMultiplier : 1);
+  const speed = cfg.baseSpeed;
   if (forwardHeld) {
     // Ship graphic points up; forward direction is rotation - 90deg
     const angle = ship.rotation - Math.PI / 2;
@@ -123,22 +117,5 @@ export function updateShip(
   } else {
     // Quick deceleration for responsive stop
     ship.body.velocity.scale(0.85);
-  }
-
-  // Dash straight forward (SPACE)
-  const space = keys.SPACE;
-  const now = scene.time.now;
-  if (
-    space &&
-    Phaser.Input.Keyboard.JustDown(space) &&
-    now - lastDashTime >= cfg.dashCooldownMs
-  ) {
-    lastDashTime = now;
-    const dashAngle = ship.rotation - Math.PI / 2;
-    scene.physics.velocityFromRotation(
-      dashAngle,
-      cfg.dashSpeed,
-      ship.body.velocity
-    );
   }
 }
