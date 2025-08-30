@@ -29,13 +29,67 @@ export function preloadShip(scene: Phaser.Scene) {
   gfx.destroy();
 }
 
-export function createShipSprite(scene: Phaser.Scene, x: number, y: number) {
-  const sprite = scene.physics.add.sprite(x, y, "ship");
+export function createShipSprite(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  textureKey = "ship"
+) {
+  const sprite = scene.physics.add.sprite(x, y, textureKey);
   sprite.setOrigin(0.5, 0.35); // forward bias
   sprite.setDamping(true);
   sprite.setDrag(0.98);
   sprite.setMaxVelocity(600, 600);
+  // Apply standard scale (only scales down large textures)
+  applyStandardShipScale(sprite);
   return sprite;
+}
+
+// Target dimension (largest side) in world pixels for the ship.
+// All ship textures will be uniformly scaled (up or down) so their largest dimension equals this.
+export const SHIP_TARGET_MAX_SIZE = 96; // doubled from previous 48
+
+export function applyStandardShipScale(
+  sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
+) {
+  const tex = sprite.texture;
+  if (!tex) return;
+  const frame = tex.get();
+  const w = frame.width;
+  const h = frame.height;
+  const maxDim = Math.max(w, h) || 1;
+  const scale = SHIP_TARGET_MAX_SIZE / maxDim;
+  sprite.setScale(scale);
+}
+
+// Dynamically load a PNG from a URL into the texture manager under a stable key.
+// Returns a Promise that resolves with the (possibly new) texture key to use.
+export async function loadExternalShipTexture(
+  scene: Phaser.Scene,
+  url: string
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const key = "ship-external"; // overwrite prior external for simplicity
+    // If key already exists and same URL, resolve immediately (no cache-bust logic here)
+    // We'll just reload always to allow updating.
+    if (scene.textures.exists(key)) {
+      scene.textures.remove(key);
+    }
+
+    // Use Phaser's Loader for cross-origin images (assuming server allows it)
+    scene.load.image(key, url);
+    scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      if (scene.textures.exists(key)) {
+        resolve(key);
+      } else {
+        reject(new Error("Failed to load ship texture"));
+      }
+    });
+    scene.load.once(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: any) => {
+      reject(new Error(`Failed to load: ${file?.src || url}`));
+    });
+    scene.load.start();
+  });
 }
 
 let lastDashTime = 0;

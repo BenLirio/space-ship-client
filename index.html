@@ -42,6 +42,11 @@
 <body>
   <div id="game-container"></div>
   <div class="debug" id="debug"></div>
+  <div style="position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,.6);padding:8px;border:1px solid #333;border-radius:6px;display:flex;gap:4px;align-items:center;font-size:12px;max-width:60vw;">
+    <label for="ship-url" style="white-space:nowrap;">Ship PNG URL:</label>
+    <input id="ship-url" type="text" placeholder="https://example.com/ship.png" style="flex:1;min-width:220px;" />
+    <button id="load-ship-btn">Load</button>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 

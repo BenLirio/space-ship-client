@@ -4,6 +4,8 @@ import {
   createShipSprite,
   updateShip,
   ArcadeInput,
+  loadExternalShipTexture,
+  applyStandardShipScale,
 } from "../ship/ship";
 
 export class MainScene extends Phaser.Scene {
@@ -41,13 +43,16 @@ export class MainScene extends Phaser.Scene {
     this.ship = createShipSprite(
       this,
       this.scale.width / 2,
-      this.scale.height / 2
+      this.scale.height / 2,
+      "ship"
     );
 
     this.scale.on("resize", () => {
       // Keep ship within bounds after resize
       this.wrapSprite(this.ship);
     });
+
+    this.setupExternalShipLoader();
   }
 
   update(time: number, delta: number) {
@@ -78,5 +83,39 @@ export class MainScene extends Phaser.Scene {
 
   private wrapSprite(sprite: Phaser.GameObjects.Sprite) {
     this.constrainToScreen(sprite);
+  }
+
+  private setupExternalShipLoader() {
+    const input = document.getElementById(
+      "ship-url"
+    ) as HTMLInputElement | null;
+    const btn = document.getElementById(
+      "load-ship-btn"
+    ) as HTMLButtonElement | null;
+    if (!input || !btn) return;
+    const debug = document.getElementById("debug");
+    const loadHandler = async () => {
+      const url = input.value.trim();
+      if (!url || !url.toLowerCase().endsWith(".png")) {
+        debug && (debug.textContent = "Provide a direct .png URL");
+        return;
+      }
+      debug && (debug.textContent = "Loading ship texture...");
+      try {
+        const key = await loadExternalShipTexture(this, url);
+        // Swap texture (preserve position & rotation)
+        this.ship.setTexture(key);
+        applyStandardShipScale(this.ship);
+        debug && (debug.textContent = "Loaded custom ship!");
+      } catch (e: any) {
+        debug && (debug.textContent = e.message || "Load failed");
+      }
+    };
+    btn.addEventListener("click", loadHandler);
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        loadHandler();
+      }
+    });
   }
 }
