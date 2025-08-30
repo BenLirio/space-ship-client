@@ -106,8 +106,7 @@ export class MainScene extends Phaser.Scene {
   }
   private positionJoystick() {
     if (!this.joystick) return;
-    // Recreate joystick at bottom-left after resize for simplicity.
-    this.joystick.destroy();
-    this.joystick = new VirtualJoystick(this, 90, this.scale.height - 90, 80);
+    // Instead of destroying (which drops active touch) just move center.
+    this.joystick.setCenter(90, this.scale.height - 90);
   }
 }

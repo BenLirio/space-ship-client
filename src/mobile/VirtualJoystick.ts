@@ -99,6 +99,28 @@ export class VirtualJoystick {
     this.drawThumb(this.current.x, this.current.y);
   }
 
+  // Reposition joystick center without dropping active touch (used on resize / orientation changes)
+  setCenter(x: number, y: number) {
+    const wasActive = this._active;
+    this.center.set(x, y);
+    // Redraw base at new center
+    this.drawBase();
+    if (wasActive && this.pointerId !== null) {
+      // Try to find the original pointer still pressed
+      const ptr = this.scene.input.manager.pointers.find(
+        (p: any) => p && p.id === this.pointerId && p.isDown
+      );
+      if (ptr) {
+        // Update thumb to current pointer location relative to new center
+        this.updateThumb(ptr.x, ptr.y);
+        return;
+      }
+    }
+    // If not active or pointer gone, recenter thumb
+    this.current.copy(this.center);
+    this.drawThumb(this.center.x, this.center.y);
+  }
+
   get active() {
     return this._active;
   }
