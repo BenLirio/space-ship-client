@@ -53,6 +53,53 @@ npm run build
 
 Output goes to `dist/`.
 
+## Deployment (GitHub Pages)
+
+This repo is configured to auto-deploy the built game to **GitHub Pages** on every push to `master`.
+
+### How it works
+
+- A GitHub Actions workflow at `.github/workflows/deploy.yml` installs deps, runs `npm run build`, and publishes the `dist/` folder to Pages.
+- The Vite `base` path is automatically set for production builds via an env var (`VITE_BASE_PATH`) so relative asset paths work when served from `https://<user>.github.io/<repo>/`.
+
+### One-time setup steps
+
+1. In the repository settings on GitHub, go to: Settings → Pages.
+2. Ensure "Build and deployment" is set to "GitHub Actions" (should auto-detect after first successful workflow run).
+
+### Triggering a deploy
+
+Just push to `master` (or use the "Run workflow" button). The workflow will:
+
+1. Install dependencies (cached).
+2. Type-check & build (`npm run build`).
+3. Upload `dist/` as a Pages artifact.
+4. Deploy to the `github-pages` environment.
+
+### Local preview of production build
+
+```bash
+npm run build
+npm run preview
+```
+
+Open the printed URL (defaults to `http://localhost:4173`).
+
+### Changing the repository name or publishing to a custom domain
+
+- If you rename the repo, deployments continue to work—Vite base path is derived dynamically in CI.
+- For a custom domain, add a `CNAME` file into `public/` (create folder) or place it in `dist/` via a build plugin; then configure the Pages custom domain in settings. Remove/override the `VITE_BASE_PATH` if serving from root.
+
+### Troubleshooting
+
+- 404 on assets: confirm the built `<script type="module" src="...">` path starts with `/<repo-name>/` in the deployed HTML.
+- Old code appears: force-refresh (cached assets). Consider versioned file names (Vite already hashes) and clear browser cache.
+- Workflow fails at build: open the Actions tab and inspect the failing step logs.
+
+---
+
+Deployment status and URL are visible in the repo's "Environments" section after the first successful run.
+
 ## Next Ideas
 
 - Add inertia particle trail
