@@ -56,20 +56,25 @@ export class MainScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    updateShip(
-      this,
-      this.ship,
-      this.inputState,
-      {
-        baseSpeed: this.baseSpeed,
-        boostMultiplier: this.boostMultiplier,
-        rotationSpeed: this.rotationSpeed,
-        dashSpeed: this.baseSpeed * 2.2,
-        dashCooldownMs: 550,
-      },
-      delta
-    );
-    this.constrainToScreen(this.ship);
+    if (!this.areControlsSuppressed()) {
+      updateShip(
+        this,
+        this.ship,
+        this.inputState,
+        {
+          baseSpeed: this.baseSpeed,
+          boostMultiplier: this.boostMultiplier,
+          rotationSpeed: this.rotationSpeed,
+          dashSpeed: this.baseSpeed * 2.2,
+          dashCooldownMs: 550,
+        },
+        delta
+      );
+      this.constrainToScreen(this.ship);
+    } else {
+      // Damp movement while controls suppressed for predictability
+      this.ship.body.velocity.scale(0.9);
+    }
   }
 
   private constrainToScreen(sprite: Phaser.GameObjects.Sprite) {
@@ -86,36 +91,148 @@ export class MainScene extends Phaser.Scene {
   }
 
   private setupExternalShipLoader() {
-    const input = document.getElementById(
+    const urlInput = document.getElementById(
       "ship-url"
     ) as HTMLInputElement | null;
-    const btn = document.getElementById(
-      "load-ship-btn"
+    const loadForm = document.getElementById(
+      "load-form"
+    ) as HTMLFormElement | null;
+    const promptInput = document.getElementById(
+      "ship-prompt"
+    ) as HTMLInputElement | null;
+    const endpointInput = document.getElementById(
+      "ship-generator-endpoint"
+    ) as HTMLInputElement | null;
+    const genForm = document.getElementById(
+      "generate-form"
+    ) as HTMLFormElement | null;
+    const genBtn = document.getElementById(
+      "generate-ship-btn"
     ) as HTMLButtonElement | null;
-    if (!input || !btn) return;
+    const previewImg = document.getElementById(
+      "ship-preview"
+    ) as HTMLImageElement | null;
+    const previewWrapper = document.getElementById(
+      "preview-wrapper"
+    ) as HTMLElement | null;
     const debug = document.getElementById("debug");
-    const loadHandler = async () => {
-      const url = input.value.trim();
-      if (!url || !url.toLowerCase().endsWith(".png")) {
+    if (endpointInput && !endpointInput.value) {
+      endpointInput.value = "http://localhost:3000/generate-space-ship";
+    }
+    if (!urlInput || !loadForm) return;
+
+    const loadHandler = async (url?: string) => {
+      const candidate = (url || urlInput.value).trim();
+      if (!candidate || !candidate.toLowerCase().endsWith(".png")) {
         debug && (debug.textContent = "Provide a direct .png URL");
         return;
       }
-      debug && (debug.textContent = "Loading ship texture...");
+      debug && (debug.textContent = "Loading ship texture...\n" + candidate);
       try {
-        const key = await loadExternalShipTexture(this, url);
-        // Swap texture (preserve position & rotation)
+        const key = await loadExternalShipTexture(this, candidate);
         this.ship.setTexture(key);
         applyStandardShipScale(this.ship);
-        debug && (debug.textContent = "Loaded custom ship!");
+        debug &&
+          (debug.textContent =
+            (debug.textContent || "") + "\nLoaded custom ship!");
+        if (previewImg && previewWrapper) {
+          previewImg.src = candidate;
+          previewWrapper.hidden = false;
+        }
       } catch (e: any) {
         debug && (debug.textContent = e.message || "Load failed");
       }
     };
-    btn.addEventListener("click", loadHandler);
-    input.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        loadHandler();
-      }
+    loadForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      loadHandler();
     });
+
+    if (genForm && promptInput && genBtn) {
+      genForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+          debug && (debug.textContent = "Enter a prompt first");
+          return;
+        }
+        const endpoint = (
+          endpointInput?.value.trim() ||
+          "http://localhost:3000/generate-space-ship"
+        ).replace(/\/$/, "");
+        genBtn.disabled = true;
+        genBtn.textContent = "Generating...";
+        debug && (debug.textContent = `Generating ship ("${prompt}")...`);
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt }),
+          });
+          const dataText = await res.text();
+          let data: any;
+          try {
+            data = JSON.parse(dataText);
+          } catch {
+            throw new Error("Invalid JSON response");
+          }
+          if (!res.ok) throw new Error(data?.message || `Status ${res.status}`);
+          const imageUrl: string | undefined = data?.imageUrl;
+          if (!imageUrl) throw new Error("No imageUrl field in response");
+          urlInput.value = imageUrl;
+          debug &&
+            (debug.textContent =
+              (debug.textContent || "") +
+              "\nFetched image URL, downloading...");
+          await loadHandler(imageUrl);
+          debug &&
+            (debug.textContent =
+              (debug.textContent || "") + "\nGenerated ship loaded.");
+        } catch (err: any) {
+          debug &&
+            (debug.textContent = "Generation failed: " + (err.message || err));
+        } finally {
+          genBtn.disabled = false;
+          genBtn.textContent = "Generate Ship";
+        }
+      });
+    }
+
+    // Suppress controls while focusing inside panel
+    // Nothing else needed: we'll inspect activeElement live in areControlsSuppressed()
+
+    // Additionally, stop Phaser from processing keydown events originating in inputs.
+    const inputs: HTMLInputElement[] = [];
+    [urlInput, promptInput, endpointInput].forEach((el) => {
+      if (el) inputs.push(el);
+    });
+    for (const el of inputs) {
+      el.addEventListener(
+        "keydown",
+        (ev) => {
+          // Prevent Phaser's global key manager from acting on these keys
+          ev.stopPropagation();
+        },
+        { capture: true }
+      );
+      el.addEventListener(
+        "keyup",
+        (ev) => {
+          ev.stopPropagation();
+        },
+        { capture: true }
+      );
+    }
+  }
+  private areControlsSuppressed() {
+    const active = document.activeElement;
+    if (!active) return false;
+    if (
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement
+    )
+      return true;
+    const panel = document.getElementById("ui-panel");
+    return !!(panel && panel.contains(active));
   }
 }

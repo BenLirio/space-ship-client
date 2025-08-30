@@ -36,16 +36,173 @@
       border: 1px solid #333;
       border-radius: 4px;
     }
+
+    #ui-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: rgba(8, 8, 12, 0.92);
+      border-left: 1px solid #222;
+      box-shadow: 0 0 12px rgba(0, 0, 0, .6);
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+
+    #ui-panel .panel-scroll {
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    #ui-panel h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    #ui-panel form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+
+    #ui-panel input[type=text] {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #111;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    #ui-panel button {
+      padding: 8px 10px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: #1d3a5a;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    #ui-panel button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    #ui-panel button:hover:not(:disabled) {
+      background: #27507a;
+    }
+
+    #ui-panel label.block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-weight: 600;
+    }
+
+    #ui-panel .small {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #bbb;
+      margin: 4px 0 8px;
+    }
+
+    #ui-panel .divider {
+      height: 1px;
+      background: #222;
+      margin: 8px 0 12px;
+    }
+
+    #ui-panel details {
+      background: #0d0d12;
+      padding: 4px 6px 8px;
+      border: 1px solid #222;
+      border-radius: 4px;
+    }
+
+    #ui-panel details summary {
+      cursor: pointer;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    #ui-panel pre.debug-box {
+      background: #050507;
+      padding: 8px;
+      border: 1px solid #222;
+      border-radius: 4px;
+      max-height: 160px;
+      overflow: auto;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #preview-wrapper {
+      text-align: center;
+    }
+
+    #preview-wrapper img {
+      max-width: 100%;
+      image-rendering: pixelated;
+      background: #000;
+      border: 1px solid #222;
+      border-radius: 4px;
+    }
+
+    @media (max-width: 860px) {
+      #ui-panel {
+        width: 50vw;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #ui-panel {
+        position: static;
+        width: 100%;
+        height: auto;
+      }
+
+      #game-container {
+        height: 60vh;
+      }
+    }
   </style>
 </head>
 
 <body>
   <div id="game-container"></div>
-  <div class="debug" id="debug"></div>
-  <div style="position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,.6);padding:8px;border:1px solid #333;border-radius:6px;display:flex;gap:4px;align-items:center;font-size:12px;max-width:60vw;">
-    <label for="ship-url" style="white-space:nowrap;">Ship PNG URL:</label>
-    <input id="ship-url" type="text" placeholder="https://example.com/ship.png" style="flex:1;min-width:220px;" />
-    <button id="load-ship-btn">Load</button>
+  <div id="ui-panel">
+    <div class="panel-scroll">
+      <h1>Ship Lab</h1>
+      <p class="small">Generate or load a custom spaceship. While typing here the game controls are paused so W / A / D / SPACE won't move the ship.</p>
+      <form id="generate-form" autocomplete="off">
+        <label class="block">Prompt
+          <input id="ship-prompt" type="text" placeholder="Sleek explorer with blue thrusters" />
+        </label>
+        <details id="endpoint-adv">
+          <summary>Advanced Endpoint</summary>
+          <input id="ship-generator-endpoint" type="text" placeholder="http://localhost:3000/generate-space-ship" />
+        </details>
+        <button id="generate-ship-btn" type="submit">Generate Ship</button>
+      </form>
+      <div class="divider"></div>
+      <form id="load-form" autocomplete="off">
+        <label class="block">Direct PNG URL
+          <input id="ship-url" type="text" placeholder="https://.../ship.png" />
+        </label>
+        <button id="load-ship-btn" type="submit">Load From URL</button>
+      </form>
+      <div class="preview" id="preview-wrapper" hidden>
+        <p class="small">Preview</p>
+        <img id="ship-preview" alt="Generated ship preview" />
+      </div>
+      <pre id="debug" class="debug-box"></pre>
+    </div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
