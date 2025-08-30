@@ -4,6 +4,7 @@ import {
   loadExternalShipTexture,
   applyStandardShipScale,
 } from "../ship/ship";
+import { GENERATE_SHIP_URL, logConfigOnce } from "../config";
 
 interface GenerateResult {
   key: string; // phaser texture key
@@ -24,6 +25,7 @@ export class SplashScene extends Phaser.Scene {
   }
 
   create() {
+    logConfigOnce();
     const { width, height } = this.scale;
     this.add
       .text(width / 2, height * 0.28, "SPACE SHIP", {
@@ -144,7 +146,7 @@ export class SplashScene extends Phaser.Scene {
       this.status("Enter a prompt or use default.");
       return;
     }
-    const endpoint = "http://localhost:3000/generate-space-ship"; // TODO: configurable
+    const endpoint = GENERATE_SHIP_URL;
     this.generateInFlight = true;
     this.status("Generating ship...");
     try {
