@@ -95,6 +95,8 @@ Open the printed URL (defaults to `http://localhost:4173`).
 - 404 on assets: confirm the built `<script type="module" src="...">` path starts with `/<repo-name>/` in the deployed HTML.
 - Old code appears: force-refresh (cached assets). Consider versioned file names (Vite already hashes) and clear browser cache.
 - Workflow fails at build: open the Actions tab and inspect the failing step logs.
+- PWA manifest 404: ensure `public/manifest.webmanifest` exists in the repo (Vite copies everything from `public/` to the build root) and that the `<link rel="manifest" href="manifest.webmanifest">` in `index.html` is **relative** (no leading slash) for sub-path hosting.
+- Icons missing: add `public/icons/icon-192.png` and `public/icons/icon-512.png` (or adjust paths in the manifest). If these files are absent the browser will log 404s but the app will still run.
 
 ---
 
