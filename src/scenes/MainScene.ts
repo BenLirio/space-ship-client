@@ -7,6 +7,7 @@ import {
   applyStandardShipScale,
   SHIP_TARGET_MAX_SIZE,
 } from "../ship/ship";
+import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
 import {
   subscribe,
@@ -186,7 +187,11 @@ export class MainScene extends Phaser.Scene {
     return await new Promise<string>((resolve, reject) => {
       this.load.image(key, url);
       this.load.once(Phaser.Loader.Events.COMPLETE, () => {
-        if (this.textures.exists(key)) resolve(key);
+        if (this.textures.exists(key)) {
+          // Post process (black -> transparent & watermark removal)
+            makeNearBlackTransparent(this, key, { clearWatermarkBox: true });
+          resolve(key);
+        }
         else reject(new Error("texture missing after load"));
       });
       this.load.once(Phaser.Loader.Events.FILE_LOAD_ERROR, () => {
@@ -227,7 +232,7 @@ export class MainScene extends Phaser.Scene {
           texKey
         );
         applyStandardShipScale(sprite);
-        sprite.setTint(0x66ccff); // differentiate remote ships
+  // Removed tint so remote ships show original colors
         this.remoteSprites.set(id, sprite);
       }
       // Update physics snapshot
