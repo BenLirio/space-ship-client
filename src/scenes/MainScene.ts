@@ -7,6 +7,12 @@ import {
   applyStandardShipScale,
 } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
+import {
+  subscribe,
+  getRemoteShips,
+  getClientId,
+  RemoteShipSnapshot,
+} from "../clientState";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -15,6 +21,11 @@ export class MainScene extends Phaser.Scene {
   private rotationSpeed = Phaser.Math.DegToRad(250); // A / D rotation speed
   private inputState!: ArcadeInput;
   private joystick?: VirtualJoystick;
+  private remoteSprites = new Map<
+    string,
+    Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
+  >();
+  private unsubscribe?: () => void;
 
   constructor() {
     super("main");
@@ -60,6 +71,10 @@ export class MainScene extends Phaser.Scene {
     this.positionJoystick();
 
     // No external loader panel in new flow.
+
+    // Subscribe to remote ship updates
+    this.unsubscribe = subscribe(() => this.syncRemoteShips());
+    this.syncRemoteShips(); // initial
   }
 
   update(time: number, delta: number) {
@@ -108,5 +123,68 @@ export class MainScene extends Phaser.Scene {
     if (!this.joystick) return;
     // Instead of destroying (which drops active touch) just move center.
     this.joystick.setCenter(90, this.scale.height - 90);
+  }
+
+  private async ensureTextureFor(url?: string) {
+    if (!url) return "ship"; // fallback
+    // Derive a deterministic key from URL
+    const key = "remote-" + btoa(url).replace(/=+$/g, "");
+    if (this.textures.exists(key)) return key;
+    return await new Promise<string>((resolve, reject) => {
+      this.load.image(key, url);
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        if (this.textures.exists(key)) resolve(key);
+        else reject(new Error("texture missing after load"));
+      });
+      this.load.once(Phaser.Loader.Events.FILE_LOAD_ERROR, () => {
+        resolve("ship"); // graceful fallback
+      });
+      this.load.start();
+    });
+  }
+
+  private async syncRemoteShips() {
+    const clientId = getClientId();
+    const snapshots = getRemoteShips();
+    const wantedIds = new Set(
+      Object.keys(snapshots).filter((id) => id !== clientId)
+    );
+
+    // Remove sprites no longer present
+    for (const [id, sprite] of this.remoteSprites) {
+      if (!wantedIds.has(id)) {
+        sprite.destroy();
+        this.remoteSprites.delete(id);
+      }
+    }
+
+    // Add/update sprites
+    for (const id of wantedIds) {
+      const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
+      if (!snap) continue;
+      let sprite = this.remoteSprites.get(id);
+      if (!sprite) {
+        const texKey = await this.ensureTextureFor(
+          snap.appearance?.shipImageUrl
+        );
+        sprite = createShipSprite(
+          this,
+          snap.physics.position.x,
+          snap.physics.position.y,
+          texKey
+        );
+        applyStandardShipScale(sprite);
+        sprite.setTint(0x66ccff); // differentiate remote ships
+        this.remoteSprites.set(id, sprite);
+      }
+      // Update physics snapshot
+      sprite.x = snap.physics.position.x;
+      sprite.y = snap.physics.position.y;
+      sprite.rotation = snap.physics.rotation;
+    }
+  }
+
+  shutdown() {
+    if (this.unsubscribe) this.unsubscribe();
   }
 }

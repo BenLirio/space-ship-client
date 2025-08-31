@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
 import { SplashScene } from "./scenes/SplashScene";
 import { WS_URL, logConfigOnce } from "./config";
+import { setClientId, updateRemoteShips } from "./clientState";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -57,9 +58,30 @@ function connectWebSocket() {
       ) {
         const msg = parsed as ServerMessage;
         switch (msg.type) {
+          case "connected": {
+            // Expect payload shape: { id: string }
+            const id = (msg.payload as any)?.id;
+            if (typeof id === "string" && id) {
+              setClientId(id);
+            } else {
+              // eslint-disable-next-line no-console
+              console.warn(
+                "[ws][connected] missing id in payload",
+                msg.payload
+              );
+            }
+            break;
+          }
           case "info": {
             // eslint-disable-next-line no-console
             console.log("[ws][info]", msg.payload);
+            break;
+          }
+          case "gameState": {
+            const ships = (msg.payload as any)?.ships;
+            if (ships && typeof ships === "object") {
+              updateRemoteShips(ships as any);
+            }
             break;
           }
           case "error": {
