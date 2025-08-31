@@ -8,8 +8,9 @@ const PROD_GENERATE_SHIP_URL =
   "https://9rc13jr0p2.execute-api.us-east-1.amazonaws.com/generate-space-ship";
 
 // WebSocket endpoints
-const LOCAL_WS_URL = "ws://localhost:3001"; // serverless-offline default
-const PROD_WS_URL = "wss://k9urmlpi47.execute-api.us-east-1.amazonaws.com/dev"; // provided prod endpoint
+// const LOCAL_WS_URL = "ws://localhost:8080"; // serverless-offline default
+const LOCAL_WS_URL = "ws://localhost:8080"; // provided prod endpoint
+const PROD_WS_URL = "ws://ec2-54-89-242-218.compute-1.amazonaws.com:8080"; // provided prod endpoint
 
 // Resolve from environment with sensible fallbacks
 export const GENERATE_SHIP_URL: string =
