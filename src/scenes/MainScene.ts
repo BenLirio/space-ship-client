@@ -189,10 +189,9 @@ export class MainScene extends Phaser.Scene {
       this.load.once(Phaser.Loader.Events.COMPLETE, () => {
         if (this.textures.exists(key)) {
           // Post process (black -> transparent & watermark removal)
-            makeNearBlackTransparent(this, key, { clearWatermarkBox: true });
+          makeNearBlackTransparent(this, key, { clearWatermarkBox: true });
           resolve(key);
-        }
-        else reject(new Error("texture missing after load"));
+        } else reject(new Error("texture missing after load"));
       });
       this.load.once(Phaser.Loader.Events.FILE_LOAD_ERROR, () => {
         resolve("ship"); // graceful fallback
@@ -232,7 +231,7 @@ export class MainScene extends Phaser.Scene {
           texKey
         );
         applyStandardShipScale(sprite);
-  // Removed tint so remote ships show original colors
+        // Removed tint so remote ships show original colors
         this.remoteSprites.set(id, sprite);
       }
       // Update physics snapshot
