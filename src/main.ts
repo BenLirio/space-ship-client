@@ -119,7 +119,8 @@ function connectWebSocket() {
     });
     ws.addEventListener("message", handleServerMessage);
 
-    // Periodically send local ship state (1 Hz)
+    // Periodically send local ship state (30 Hz)
+    const STATE_SEND_HZ = 30;
     const interval = setInterval(() => {
       const id = getClientId();
       // We still require we've been assigned an id (server can infer identity from connection)
@@ -145,7 +146,7 @@ function connectWebSocket() {
         // eslint-disable-next-line no-console
         console.warn("[ws] failed to send shipState", e);
       }
-    }, 1000);
+    }, 1000 / STATE_SEND_HZ);
 
     ws.addEventListener("close", () => clearInterval(interval));
   } catch (e) {
