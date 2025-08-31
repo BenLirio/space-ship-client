@@ -3,20 +3,20 @@ import {
   preloadShip,
   createShipSprite,
   updateShip,
-  ArcadeInput,
   applyStandardShipScale,
   SHIP_TARGET_MAX_SIZE,
 } from "../ship/ship";
+import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
 import {
   subscribe,
   getRemoteShips,
   getClientId,
-  RemoteShipSnapshot,
   setLocalShipAccessor,
   setLocalShipImageUrl,
 } from "../clientState";
+import { RemoteShipSnapshot } from "../types/state";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;

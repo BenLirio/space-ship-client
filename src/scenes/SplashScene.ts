@@ -6,10 +6,6 @@ import {
 } from "../ship/ship";
 import { GENERATE_SHIP_URL, logConfigOnce } from "../config";
 
-interface GenerateResult {
-  key: string; // phaser texture key
-}
-
 export class SplashScene extends Phaser.Scene {
   private formEl?: HTMLDivElement;
   private statusEl?: HTMLDivElement;

@@ -1,21 +1,15 @@
 // Centralized ephemeral client-side state (WebSocket-related)
 // Stores the server-assigned client id after receiving a `connected` message.
+import { RemoteShipSnapshot, Listener } from "./types/state";
 
 let _clientId: string | undefined;
-
 // Map of remote ship id -> snapshot
-export interface RemoteShipSnapshot {
-  physics: { position: { x: number; y: number }; rotation: number };
-  appearance?: { shipImageUrl?: string };
-}
-
 let _remoteShips: Record<string, RemoteShipSnapshot> = {};
 let _localShipImageUrl: string | undefined;
 let _localShipAccessor:
   | (() => { position: { x: number; y: number }; rotation: number })
   | undefined;
 
-type Listener = () => void;
 const listeners = new Set<Listener>();
 
 export function setClientId(id: string) {

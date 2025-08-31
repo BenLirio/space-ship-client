@@ -1,15 +1,5 @@
 import Phaser from "phaser";
-
-// Input structure for arcade movement
-export interface ArcadeInput {
-  cursors: Phaser.Types.Input.Keyboard.CursorKeys; // retained though not heavily used here
-  keys: Record<string, Phaser.Input.Keyboard.Key>; // W A D
-}
-
-export interface MovementConfig {
-  baseSpeed: number; // forward speed when holding W or joystick
-  rotationSpeed: number; // radians per second for A/D (desktop)
-}
+import { ArcadeInput, MovementConfig } from "../types/ship";
 
 export function preloadShip(scene: Phaser.Scene) {
   // Load the default ship texture from external URL (replaces old triangle placeholder)

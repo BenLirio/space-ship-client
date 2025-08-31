@@ -9,6 +9,7 @@ import {
   getLocalShipAccessor,
   getLocalShipImageUrl,
 } from "./clientState";
+import { ServerMessage } from "./types/websocket";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -37,11 +38,7 @@ function connectWebSocket() {
     logConfigOnce();
     const ws = new WebSocket(WS_URL);
     (window as any).ws = ws; // expose for debugging in console
-    // Type helper for structured server messages
-    interface ServerMessage<T = unknown> {
-      type: string;
-      payload: T;
-    }
+    // Structured server message type imported from types
 
     function handleServerMessage(ev: MessageEvent) {
       const raw = ev.data;
