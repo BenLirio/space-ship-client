@@ -2,7 +2,6 @@ import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
 import { SplashScene } from "./scenes/SplashScene";
 import { WS_URL, logConfigOnce } from "./config";
-// to test push
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
