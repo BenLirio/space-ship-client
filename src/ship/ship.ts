@@ -17,6 +17,12 @@ export function preloadShip(scene: Phaser.Scene) {
     "https://space-ship-sprites.s3.amazonaws.com/generated/3ca83705-99b6-4fb9-857f-d243b2773172.png";
   if (scene.textures.exists("ship")) return; // already loaded
   scene.load.image("ship", url);
+  // After the load completes, post-process to knock out black background.
+  scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+    if (scene.textures.exists("ship")) {
+      makeNearBlackTransparent(scene, "ship");
+    }
+  });
 }
 
 export function createShipSprite(
@@ -70,6 +76,8 @@ export async function loadExternalShipTexture(
     scene.load.image(key, url);
     scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
       if (scene.textures.exists(key)) {
+        // Post-process transparency
+        makeNearBlackTransparent(scene, key);
         resolve(key);
       } else {
         reject(new Error("Failed to load ship texture"));
@@ -80,6 +88,72 @@ export async function loadExternalShipTexture(
     });
     scene.load.start();
   });
+}
+
+// Make near-black pixels transparent (used for generated ships that come with black bg)
+// Strategy: For any pixel whose average brightness <= threshold, reduce alpha proportionally.
+// This keeps very dark grey slightly visible (glow, outline) while cutting out pure black.
+export function makeNearBlackTransparent(
+  scene: Phaser.Scene,
+  key: string,
+  opts?: { threshold?: number; clearWatermarkBox?: boolean }
+) {
+  const threshold = opts?.threshold ?? 56; // ~22% of 255
+  const clearWatermark = opts?.clearWatermarkBox ?? true; // enable by default
+  const tex = scene.textures.get(key);
+  if (!tex) return;
+  const src = tex.getSourceImage() as
+    | HTMLImageElement
+    | HTMLCanvasElement
+    | null;
+  if (!src) return;
+  const w = (src as any).naturalWidth || (src as any).width;
+  const h = (src as any).naturalHeight || (src as any).height;
+  if (!w || !h) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  try {
+    ctx.drawImage(src as CanvasImageSource, 0, 0, w, h);
+    const img = ctx.getImageData(0, 0, w, h);
+    const data = img.data;
+    // 1. Fade near-black background
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const avg = (r + g + b) / 3;
+      if (avg <= threshold) {
+        const factor = avg / threshold; // 0..1
+        data[i + 3] = Math.round(data[i + 3] * factor);
+      }
+    }
+
+    // 2. Hard clear bottom-right watermark area (normalized 0.95..1 range)
+    if (clearWatermark) {
+      const startX = Math.floor(w * 0.92);
+      const startY = Math.floor(h * 0.92);
+      for (let y = startY; y < h; y++) {
+        for (let x = startX; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          data[idx] = 0;
+          data[idx + 1] = 0;
+          data[idx + 2] = 0;
+          data[idx + 3] = 0; // fully transparent
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    // Replace existing texture with canvas version.
+    scene.textures.remove(key);
+    scene.textures.addCanvas(key, canvas);
+  } catch (e) {
+    // Likely a CORS-tainted canvas; skip silently.
+    // eslint-disable-next-line no-console
+    console.warn("[texture] transparency post-process skipped", e);
+  }
 }
 
 export function updateShip(
