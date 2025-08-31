@@ -28,7 +28,7 @@ export class SplashScene extends Phaser.Scene {
     logConfigOnce();
     const { width, height } = this.scale;
     this.add
-      .text(width / 2, height * 0.28, "SPACE SHIP", {
+      .text(width / 2, height * 0.28, "AI SPACE SHIP", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "64px",
         color: "#ffffff",
