@@ -12,18 +12,11 @@ export interface MovementConfig {
 }
 
 export function preloadShip(scene: Phaser.Scene) {
-  // Generate a lightweight procedural texture for a simple triangle ship
-  const gfx = scene.make.graphics({ x: 0, y: 0 });
-  const size = 40;
-  gfx.fillStyle(0xffffff, 1);
-  gfx.beginPath();
-  gfx.moveTo(0, size / 2);
-  gfx.lineTo(size, size / 2);
-  gfx.lineTo(size / 2, 0);
-  gfx.closePath();
-  gfx.fillPath();
-  gfx.generateTexture("ship", size, size);
-  gfx.destroy();
+  // Load the default ship texture from external URL (replaces old triangle placeholder)
+  const url =
+    "https://space-ship-sprites.s3.amazonaws.com/generated/3ca83705-99b6-4fb9-857f-d243b2773172.png";
+  if (scene.textures.exists("ship")) return; // already loaded
+  scene.load.image("ship", url);
 }
 
 export function createShipSprite(

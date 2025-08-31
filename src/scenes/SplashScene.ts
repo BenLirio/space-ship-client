@@ -164,13 +164,13 @@ export class SplashScene extends Phaser.Scene {
         throw new Error("Bad JSON");
       }
       if (!res.ok) throw new Error(data?.message || `Status ${res.status}`);
-  const imageUrl: string | undefined = data?.imageUrl;
-  if (!imageUrl) throw new Error("No imageUrl returned");
+      const imageUrl: string | undefined = data?.imageUrl;
+      if (!imageUrl) throw new Error("No imageUrl returned");
       this.status("Downloading ship texture...");
       const key = await loadExternalShipTexture(this, imageUrl);
       // Ensure proper scaling once we instantiate in main scene
       this.generatedKey = key;
-  this.generatedImageUrl = imageUrl;
+      this.generatedImageUrl = imageUrl;
       this.status("Ship ready! Starting...");
       setTimeout(() => this.startGame(), 400);
     } catch (e: any) {
@@ -190,6 +190,9 @@ export class SplashScene extends Phaser.Scene {
       this.formEl.remove();
       this.formEl = undefined;
     }
-  this.scene.start("main", { shipTexture: this.generatedKey, shipImageUrl: this.generatedImageUrl });
+    this.scene.start("main", {
+      shipTexture: this.generatedKey,
+      shipImageUrl: this.generatedImageUrl,
+    });
   }
 }
