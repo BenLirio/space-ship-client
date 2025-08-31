@@ -30,6 +30,53 @@ function connectWebSocket() {
     logConfigOnce();
     const ws = new WebSocket(WS_URL);
     (window as any).ws = ws; // expose for debugging in console
+    // Type helper for structured server messages
+    interface ServerMessage<T = unknown> {
+      type: string;
+      payload: T;
+    }
+
+    function handleServerMessage(ev: MessageEvent) {
+      const raw = ev.data;
+      // Attempt to parse JSON if it's a string; otherwise treat as already-parsed
+      let parsed: unknown = raw;
+      if (typeof raw === "string") {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          // eslint-disable-next-line no-console
+          console.log("[ws][unparseable]", raw);
+          return;
+        }
+      }
+      // Validate shape
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        typeof (parsed as { type?: unknown }).type === "string"
+      ) {
+        const msg = parsed as ServerMessage;
+        switch (msg.type) {
+          case "info": {
+            // eslint-disable-next-line no-console
+            console.log("[ws][info]", msg.payload);
+            break;
+          }
+          case "error": {
+            // eslint-disable-next-line no-console
+            console.error("[ws][error]", msg.payload);
+            break;
+          }
+          default: {
+            // eslint-disable-next-line no-console
+            console.log("[ws][message]", msg);
+          }
+        }
+      } else {
+        // eslint-disable-next-line no-console
+        console.log("[ws][unstructured]", raw);
+      }
+    }
     ws.addEventListener("open", () => {
       // eslint-disable-next-line no-console
       console.log("[ws] open ->", WS_URL);
@@ -42,10 +89,7 @@ function connectWebSocket() {
       // eslint-disable-next-line no-console
       console.log("[ws] error", err);
     });
-    ws.addEventListener("message", (msg) => {
-      // eslint-disable-next-line no-console
-      console.log("[ws] message", msg.data);
-    });
+    ws.addEventListener("message", handleServerMessage);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[ws] failed to initiate", e);
