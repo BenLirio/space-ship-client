@@ -12,6 +12,8 @@ import {
   getRemoteShips,
   getClientId,
   RemoteShipSnapshot,
+  setLocalShipAccessor,
+  setLocalShipImageUrl,
 } from "../clientState";
 
 export class MainScene extends Phaser.Scene {
@@ -35,7 +37,7 @@ export class MainScene extends Phaser.Scene {
     preloadShip(this);
   }
 
-  create(data: { shipTexture?: string }) {
+  create(data: { shipTexture?: string; shipImageUrl?: string }) {
     this.cursors = this.input.keyboard!.createCursorKeys();
     const kb = this.input.keyboard!;
     const extraKeys = kb.addKeys({ W: "W", A: "A", D: "D" }) as Record<
@@ -59,6 +61,15 @@ export class MainScene extends Phaser.Scene {
       textureKey
     );
     applyStandardShipScale(this.ship);
+
+    // Register accessor for outbound state sync
+    setLocalShipAccessor(() => ({
+      position: { x: this.ship.x, y: this.ship.y },
+      rotation: this.ship.rotation,
+    }));
+    if (data?.shipImageUrl) {
+      setLocalShipImageUrl(data.shipImageUrl);
+    }
 
     this.scale.on("resize", () => {
       this.wrapSprite(this.ship);

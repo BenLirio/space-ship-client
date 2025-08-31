@@ -2,7 +2,13 @@ import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
 import { SplashScene } from "./scenes/SplashScene";
 import { WS_URL, logConfigOnce } from "./config";
-import { setClientId, updateRemoteShips } from "./clientState";
+import {
+  setClientId,
+  updateRemoteShips,
+  getClientId,
+  getLocalShipAccessor,
+  getLocalShipImageUrl,
+} from "./clientState";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -112,6 +118,36 @@ function connectWebSocket() {
       console.log("[ws] error", err);
     });
     ws.addEventListener("message", handleServerMessage);
+
+    // Periodically send local ship state (1 Hz)
+    const interval = setInterval(() => {
+      const id = getClientId();
+      // We still require we've been assigned an id (server can infer identity from connection)
+      if (!id || ws.readyState !== WebSocket.OPEN) return;
+      const shipFn = getLocalShipAccessor();
+      if (!shipFn) return;
+      const ship = shipFn();
+      const msg = {
+        type: "shipState",
+        payload: {
+          physics: {
+            position: { x: ship.position.x, y: ship.position.y },
+            rotation: ship.rotation,
+          },
+          appearance: {
+            shipImageUrl: getLocalShipImageUrl() || "",
+          },
+        },
+      } as const;
+      try {
+        ws.send(JSON.stringify(msg));
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[ws] failed to send shipState", e);
+      }
+    }, 1000);
+
+    ws.addEventListener("close", () => clearInterval(interval));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[ws] failed to initiate", e);
