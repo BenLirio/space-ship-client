@@ -123,7 +123,24 @@ export class SplashScene extends Phaser.Scene {
       const prompt = input.value.trim();
       await this.handleGenerate(prompt);
     });
-    skipBtn.addEventListener("click", () => this.startGame());
+    skipBtn.addEventListener("click", () => {
+      // Notify server we are proceeding with default ship (no generation)
+      try {
+        const ws: WebSocket | undefined = (window as any).ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          // Intentionally minimal envelope (no payload)
+          ws.send(
+            JSON.stringify({
+              type: "startWithDefault",
+            })
+          );
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("failed to send startWithDefault", e);
+      }
+      this.startGame();
+    });
 
     // Enter to generate
     input.addEventListener("keydown", (e) => {
