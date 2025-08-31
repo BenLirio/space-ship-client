@@ -10,7 +10,7 @@ const PROD_GENERATE_SHIP_URL =
 // WebSocket endpoints
 // const LOCAL_WS_URL = "ws://localhost:8080"; // serverless-offline default
 const LOCAL_WS_URL = "ws://localhost:8080"; // provided prod endpoint
-const PROD_WS_URL = "wss://space-ship-socket.benlirio.com:8080"; // provided prod endpoint
+const PROD_WS_URL = "wss://space-ship-socket.benlirio.com"; // provided prod endpoint
 
 // Resolve from environment with sensible fallbacks
 export const GENERATE_SHIP_URL: string =
