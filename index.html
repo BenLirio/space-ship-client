@@ -71,19 +71,7 @@
   <!-- SplashScene now handles prompt / generation UI -->
   <script type="module" src="/src/main.ts"></script>
   <div id="rotate-overlay">Rotate your device to landscape to play.</div>
-  <script>
-    // Try to reduce browser UI: request fullscreen after first user tap.
-    function goFS() {
-      const el = document.documentElement;
-      if (el.requestFullscreen) el.requestFullscreen();
-      window.removeEventListener('touchend', goFS);
-      window.removeEventListener('click', goFS);
-    }
-    window.addEventListener('touchend', goFS, { once: true });
-    window.addEventListener('click', goFS, { once: true });
-    // iOS Safari / Chrome tip (can't programmatically hide address bar reliably): scroll a tiny bit.
-    window.addEventListener('load', () => setTimeout(() => window.scrollTo(0, 1), 50));
-  </script>
+  <!-- Removed automatic fullscreen behavior -->
 </body>
 
 </html>
