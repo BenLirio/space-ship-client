@@ -8,6 +8,7 @@ import {
   getClientId,
   getLocalShipAccessor,
   getLocalShipImageUrl,
+  getInputSnapshot,
 } from "./clientState";
 import { ServerMessage } from "./types/websocket";
 
@@ -139,6 +140,18 @@ function connectWebSocket() {
       } as const;
       try {
         ws.send(JSON.stringify(msg));
+        const input = getInputSnapshot();
+        if (input) {
+          ws.send(
+            JSON.stringify({
+              type: "inputSnapshot",
+              payload: {
+                keysDown: Array.from(input.keysDown),
+                joystick: { x: input.joystick.x, y: input.joystick.y },
+              },
+            })
+          );
+        }
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn("[ws] failed to send shipState", e);

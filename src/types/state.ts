@@ -6,3 +6,8 @@ export interface RemoteShipSnapshot {
 }
 
 export type Listener = () => void;
+
+export interface InputSnapshot {
+  keysDown: Set<string>;
+  joystick: { x: number; y: number };
+}

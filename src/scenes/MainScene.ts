@@ -15,6 +15,7 @@ import {
   getClientId,
   setLocalShipAccessor,
   setLocalShipImageUrl,
+  setInputSnapshot,
 } from "../clientState";
 import { RemoteShipSnapshot } from "../types/state";
 
@@ -128,6 +129,33 @@ export class MainScene extends Phaser.Scene {
       // Damp movement while controls suppressed for predictability
       this.ship.body.velocity.scale(0.9);
     }
+
+    // Build and publish InputSnapshot every frame (cheap enough) for outbound sync
+    const keysDown = new Set<string>();
+    const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
+      if (k && k.isDown && name) keysDown.add(name);
+    };
+    const c = this.cursors;
+    captureKey(c.up, "ArrowUp");
+    captureKey(c.down, "ArrowDown");
+    captureKey(c.left, "ArrowLeft");
+    captureKey(c.right, "ArrowRight");
+    const extra = (this.inputState?.keys || {}) as Record<
+      string,
+      Phaser.Input.Keyboard.Key
+    >;
+    captureKey(extra.W, "W");
+    captureKey(extra.A, "A");
+    captureKey(extra.D, "D");
+    let jx = 0;
+    let jy = 0;
+    if (this.joystick && this.joystick.active) {
+      const angle = this.joystick.angle;
+      const strength = this.joystick.strength;
+      jx = Math.cos(angle) * strength;
+      jy = Math.sin(angle) * strength;
+    }
+    setInputSnapshot({ keysDown, joystick: { x: jx, y: jy } });
   }
 
   // Wrapping removed: movement is unbounded. (Keep placeholder methods if future constraints needed.)
