@@ -41,7 +41,7 @@ export class SplashScene extends Phaser.Scene {
     root.innerHTML = `
       <div class="splash-stack" role="dialog" aria-labelledby="splash-title">
         <header class="splash-header">
-          <h1 id="splash-title" class="splash-title">AI SPACE SHIP</h1>
+          <h1 id="splash-title" class="splash-title">AI SPACESHIP</h1>
           <p class="splash-sub">Enter a prompt to generate your ship<br><span class="splash-sub-alt">or start with the default</span></p>
         </header>
         <form class="splash-form" autocomplete="off">

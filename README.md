@@ -1,4 +1,4 @@
-# Space Ship Client
+# Spaceship Client
 
 A tiny Phaser 3 + TypeScript starter featuring a simple steer-and-thrust spaceship you can fly around the screen with arrow keys.
 

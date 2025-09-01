@@ -1,5 +1,5 @@
 {
-  "name": "Space Ship",
+  "name": "Spaceship",
   "short_name": "Ship",
   "start_url": "./?src=pwa",
   "display": "standalone",
