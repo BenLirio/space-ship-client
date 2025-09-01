@@ -125,8 +125,8 @@ export function makeNearBlackTransparent(
 
     // 2. Hard clear bottom-right watermark area (normalized 0.95..1 range)
     if (clearWatermark) {
-      const startX = Math.floor(w * 0.92);
-      const startY = Math.floor(h * 0.92);
+      const startX = Math.floor(w * 0.91);
+      const startY = Math.floor(h * 0.91);
       for (let y = startY; y < h; y++) {
         for (let x = startX; x < w; x++) {
           const idx = (y * w + x) * 4;
