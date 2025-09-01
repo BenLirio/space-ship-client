@@ -43,6 +43,11 @@ export class SplashScene extends Phaser.Scene {
         <header class="splash-header">
           <h1 id="splash-title" class="splash-title">AI SPACESHIP</h1>
           <p class="splash-sub">Enter a prompt to generate your ship<br><span class="splash-sub-alt">or start with the default</span></p>
+          <div class="gh-star-wrap">
+            <!-- GitHub star button -->
+            <a class="github-button" href="https://github.com/BenLirio/space-ship-generator" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" aria-label="Star BenLirio/space-ship-generator on GitHub">Star</a>
+            <a class="discord-link" href="https://discord.com/invite/F69uzFtgpT" target="_blank" rel="noopener" aria-label="Join our Discord (opens in new tab)">Join our Discord</a>
+          </div>
         </header>
         <form class="splash-form" autocomplete="off">
           <label class="visually-hidden" for="shipPrompt">Ship prompt</label>
@@ -81,6 +86,23 @@ export class SplashScene extends Phaser.Scene {
     // Stop key events leaking to Phaser while typing
     this.inputEl?.addEventListener("keydown", (e) => e.stopPropagation());
     setTimeout(() => this.inputEl?.focus(), 80);
+
+    // Load GitHub buttons script once so the star button renders (it scans DOM on load)
+    if (!document.getElementById("gh-buttons-script")) {
+      const s = document.createElement("script");
+      s.id = "gh-buttons-script";
+      s.async = true;
+      s.defer = true;
+      s.src = "https://buttons.github.io/buttons.js";
+      document.head.appendChild(s);
+    } else {
+      // If script already present & exposes a re-render helper, attempt to re-run (fails silently otherwise)
+      try {
+        (window as any).GitHubButton?.renderAll?.();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   private onWindowResize = () => this.layout();
@@ -108,7 +130,12 @@ export class SplashScene extends Phaser.Scene {
       .splash-title { margin:0; font-weight:600; font-size:clamp(40px,10vw,92px); letter-spacing:0.02em; background:linear-gradient(90deg,#fff,#b2dcff 55%,#60b5ff); -webkit-background-clip:text; color:transparent; }
       .splash-sub { margin:0; font-size:clamp(14px,2.4vw,24px); color:#b9c6d1; font-weight:400; }
       .splash-sub-alt { opacity:.65; }
-  .splash-form { display:flex; flex-direction:column; gap:16px; background:rgba(12,18,28,.55); border:1px solid rgba(120,160,200,.18); padding:clamp(16px,3vw,32px); backdrop-filter:blur(18px) saturate(150%); border-radius:20px; box-shadow:0 8px 40px -8px rgba(0,0,0,.55); width:100%; max-width:100%; }
+  .gh-star-wrap { margin-top:14px; display:flex; justify-content:center; }
+  .gh-star-wrap { gap:14px; flex-wrap:wrap; }
+  .gh-star-wrap .discord-link { display:inline-flex; align-items:center; font-size:14px; line-height:1; padding:8px 14px; border-radius:999px; background:#5865F2; color:#fff; text-decoration:none; font-weight:500; letter-spacing:.3px; border:1px solid #4653c5; box-shadow:0 2px 6px -2px rgba(0,0,0,.5); transition:background .2s, transform .2s; }
+  .gh-star-wrap .discord-link:hover { background:#6d79ff; }
+  .gh-star-wrap .discord-link:active { transform:translateY(2px); }
+  .splash-form { display:flex; flex-direction:column; gap:12px; background:rgba(12,18,28,.55); border:1px solid rgba(120,160,200,.18); padding:clamp(10px,1.8vw,18px); backdrop-filter:blur(18px) saturate(150%); border-radius:16px; box-shadow:0 6px 30px -8px rgba(0,0,0,.55); width:100%; max-width:100%; }
   .splash-form input { width:100%; max-width:100%; padding:14px 16px; font-size:clamp(14px,1.9vw,18px); background:#0b131d; color:#fff; border:1px solid #284056; border-radius:12px; outline:none; font-family:inherit; transition:border-color .18s, background .18s; }
       .splash-form input:focus { border-color:#4da3ff; background:#0e1824; box-shadow:0 0 0 3px rgba(77,163,255,.28); }
       .button-row { display:flex; flex-wrap:wrap; gap:12px; }
@@ -118,7 +145,8 @@ export class SplashScene extends Phaser.Scene {
       .button-row button:hover:not([disabled]) { filter:brightness(1.15); }
       .button-row button:active:not([disabled]) { transform:translateY(2px); }
       .button-row button[disabled] { opacity:.55; cursor:default; }
-      .status { min-height:18px; font-size:12px; color:#9fb9c9; font-family:inherit; letter-spacing:.5px; }
+  .status { min-height:0; font-size:12px; color:#9fb9c9; font-family:inherit; letter-spacing:.5px; }
+  .status:empty { display:none; }
       .visually-hidden { position:absolute !important; height:1px; width:1px; overflow:hidden; clip:rect(1px,1px,1px,1px); white-space:nowrap; }
       @media (max-width:640px) { .splash-form { padding:20px 18px; gap:14px; }.splash-header { margin-bottom:4px; } }
       @media (max-height:600px) { .splash-stack { gap:12px; } .splash-title { font-size:clamp(34px,8vw,68px); } }
@@ -152,7 +180,7 @@ export class SplashScene extends Phaser.Scene {
       this.generateInFlight = true;
       this.awaitingShip = true;
       this.awaitedId = getClientId();
-      this.status("Generating ship...");
+      this.status(""); // removed redundant message
       this.setBusy(true);
       ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
       // Listen for info & error events globally (added in main.ts)
@@ -180,7 +208,11 @@ export class SplashScene extends Phaser.Scene {
   private onWsInfo = (ev: CustomEvent) => {
     if (!this.awaitingShip) return; // ignore after done
     const msg = ev.detail;
-    if (typeof msg === "string") this.status(msg);
+    if (typeof msg === "string") {
+      // Log info to console only (no UI update) per request
+      // eslint-disable-next-line no-console
+      console.log("info:", msg);
+    }
   };
 
   private onWsError = (ev: CustomEvent) => {
