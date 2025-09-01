@@ -33,7 +33,9 @@ export function createShipSprite(
 
 // Target dimension (largest side) in world pixels for the ship.
 // All ship textures will be uniformly scaled (up or down) so their largest dimension equals this.
-export const SHIP_TARGET_MAX_SIZE = 96; // doubled from previous 48
+export const SHIP_TARGET_MAX_SIZE = 96; // logical baseline size
+// Multiplier to enlarge rendered ships (does not affect grid cell calc which uses baseline)
+export const SHIP_SCALE_MULTIPLIER = 1.5; // +50%
 
 export function applyStandardShipScale(
   sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
@@ -44,7 +46,7 @@ export function applyStandardShipScale(
   const w = frame.width;
   const h = frame.height;
   const maxDim = Math.max(w, h) || 1;
-  const scale = SHIP_TARGET_MAX_SIZE / maxDim;
+  const scale = (SHIP_TARGET_MAX_SIZE / maxDim) * SHIP_SCALE_MULTIPLIER;
   sprite.setScale(scale);
 }
 
