@@ -31,6 +31,7 @@ export class SplashScene extends Phaser.Scene {
     // Rerun layout on phaser resize & window resize (covers mobile chrome show/hide)
     this.scale.on("resize", () => this.layout(), this);
     window.addEventListener("resize", this.onWindowResize);
+    window.addEventListener("orientationchange", this.onWindowResize);
     this.layout();
   }
 
@@ -55,9 +56,14 @@ export class SplashScene extends Phaser.Scene {
       </div>`;
     document.body.appendChild(root);
     this.overlayRoot = root;
-    this.inputEl = root.querySelector<HTMLInputElement>("#shipPrompt") || undefined;
-    this.generateBtn = root.querySelector<HTMLButtonElement>("button[data-action=generate]") || undefined;
-    this.defaultBtn = root.querySelector<HTMLButtonElement>("button[data-action=default]") || undefined;
+    this.inputEl =
+      root.querySelector<HTMLInputElement>("#shipPrompt") || undefined;
+    this.generateBtn =
+      root.querySelector<HTMLButtonElement>("button[data-action=generate]") ||
+      undefined;
+    this.defaultBtn =
+      root.querySelector<HTMLButtonElement>("button[data-action=default]") ||
+      undefined;
     this.statusEl = root.querySelector<HTMLDivElement>(".status") || undefined;
 
     // Events
@@ -82,7 +88,10 @@ export class SplashScene extends Phaser.Scene {
   private layout() {
     if (!this.overlayRoot) return;
     // Use JS only for CSS var that tracks innerHeight (browser UI chrome changes)
-    document.documentElement.style.setProperty("--app-vh", `${window.innerHeight * 0.01}px`);
+    document.documentElement.style.setProperty(
+      "--app-vh",
+      `${window.innerHeight * 0.01}px`
+    );
   }
 
   private injectStylesOnce() {
@@ -90,15 +99,17 @@ export class SplashScene extends Phaser.Scene {
     const style = document.createElement("style");
     style.id = "splash-styles";
     style.textContent = `
-      :root { --app-vh: 1vh; }
-      .splash-overlay { position: fixed; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:calc(env(safe-area-inset-top,0) + 2.5vh) clamp(12px,3vw,48px) calc(env(safe-area-inset-bottom,0) + 2.5vh); pointer-events:auto; z-index:1500; font-family:system-ui,sans-serif; }
-      .splash-stack { width: min(760px, 100%); display:flex; flex-direction:column; gap:clamp(16px,2.5vh,40px); align-items:stretch; }
+  :root { --app-vh: 1vh; }
+  html, body { box-sizing:border-box; }
+  *,*::before,*::after { box-sizing:inherit; }
+  .splash-overlay { position: fixed; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:calc(env(safe-area-inset-top,0) + 2.5vh) clamp(12px,3vw,48px) calc(env(safe-area-inset-bottom,0) + 2.5vh); pointer-events:auto; z-index:1500; font-family:system-ui,sans-serif; overflow:hidden; }
+  .splash-stack { width: min(760px, 100%); max-width:100%; display:flex; flex-direction:column; gap:clamp(16px,2.5vh,40px); align-items:stretch; }
       .splash-header { text-align:center; line-height:1.1; padding:0 4px; }
       .splash-title { margin:0; font-weight:600; font-size:clamp(40px,10vw,92px); letter-spacing:0.02em; background:linear-gradient(90deg,#fff,#b2dcff 55%,#60b5ff); -webkit-background-clip:text; color:transparent; }
       .splash-sub { margin:0; font-size:clamp(14px,2.4vw,24px); color:#b9c6d1; font-weight:400; }
       .splash-sub-alt { opacity:.65; }
-      .splash-form { display:flex; flex-direction:column; gap:16px; background:rgba(12,18,28,.55); border:1px solid rgba(120,160,200,.18); padding:clamp(16px,3vw,32px); backdrop-filter:blur(18px) saturate(150%); border-radius:20px; box-shadow:0 8px 40px -8px rgba(0,0,0,.55); }
-      .splash-form input { width:100%; padding:14px 16px; font-size:clamp(14px,1.9vw,18px); background:#0b131d; color:#fff; border:1px solid #284056; border-radius:12px; outline:none; font-family:inherit; transition:border-color .18s, background .18s; }
+  .splash-form { display:flex; flex-direction:column; gap:16px; background:rgba(12,18,28,.55); border:1px solid rgba(120,160,200,.18); padding:clamp(16px,3vw,32px); backdrop-filter:blur(18px) saturate(150%); border-radius:20px; box-shadow:0 8px 40px -8px rgba(0,0,0,.55); width:100%; max-width:100%; }
+  .splash-form input { width:100%; max-width:100%; padding:14px 16px; font-size:clamp(14px,1.9vw,18px); background:#0b131d; color:#fff; border:1px solid #284056; border-radius:12px; outline:none; font-family:inherit; transition:border-color .18s, background .18s; }
       .splash-form input:focus { border-color:#4da3ff; background:#0e1824; box-shadow:0 0 0 3px rgba(77,163,255,.28); }
       .button-row { display:flex; flex-wrap:wrap; gap:12px; }
       .button-row button { flex:1 1 220px; position:relative; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:14px 18px; font-size:clamp(14px,1.9vw,18px); border-radius:12px; cursor:pointer; font-weight:500; line-height:1; border:1px solid; letter-spacing:.5px; background:#17324c; color:#fff; border-color:#2c4d6c; transition:background .2s,border-color .2s, transform .2s; }
@@ -132,7 +143,7 @@ export class SplashScene extends Phaser.Scene {
       this.status("Enter a prompt or use default.");
       return;
     }
-  try {
+    try {
       const ws: WebSocket | undefined = (window as any).ws;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         this.status("WebSocket not connected yet.");
@@ -142,7 +153,7 @@ export class SplashScene extends Phaser.Scene {
       this.awaitingShip = true;
       this.awaitedId = getClientId();
       this.status("Generating ship...");
-    this.setBusy(true);
+      this.setBusy(true);
       ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
       // Listen for info & error events globally (added in main.ts)
       window.addEventListener("ws-info", this.onWsInfo as any);
@@ -156,13 +167,13 @@ export class SplashScene extends Phaser.Scene {
           this.cleanupGenerationListeners();
           this.generateInFlight = false;
           this.awaitingShip = false;
-      this.setBusy(false);
+          this.setBusy(false);
         }
       }, 30000);
     } catch (e: any) {
       this.status("Failed to send prompt: " + (e.message || e));
       this.generateInFlight = false;
-    this.setBusy(false);
+      this.setBusy(false);
     }
   }
 
@@ -174,11 +185,11 @@ export class SplashScene extends Phaser.Scene {
 
   private onWsError = (ev: CustomEvent) => {
     const msg = ev.detail;
-  this.status("Error: " + msg);
+    this.status("Error: " + msg);
     this.cleanupGenerationListeners();
     this.generateInFlight = false;
     this.awaitingShip = false;
-  this.setBusy(false);
+    this.setBusy(false);
   };
 
   private checkForGeneratedShip() {
@@ -189,11 +200,11 @@ export class SplashScene extends Phaser.Scene {
     const mine = (ships as any)[id];
     if (mine && mine.appearance?.shipImageUrl) {
       this.generatedImageUrl = mine.appearance.shipImageUrl;
-  this.status("Ship ready! Starting...");
+      this.status("Ship ready! Starting...");
       this.cleanupGenerationListeners();
       this.awaitingShip = false;
       this.generateInFlight = false;
-  this.setBusy(false);
+      this.setBusy(false);
       setTimeout(() => this.startGame(), 400);
     }
   }
@@ -219,9 +230,14 @@ export class SplashScene extends Phaser.Scene {
     if (this.generateBtn) this.generateBtn.disabled = isBusy;
     if (this.defaultBtn) this.defaultBtn.disabled = isBusy;
     if (isBusy && this.generateBtn) {
-      this.generateBtn.dataset.originalText = this.generateBtn.textContent || "";
+      this.generateBtn.dataset.originalText =
+        this.generateBtn.textContent || "";
       this.generateBtn.textContent = "Generating…";
-    } else if (!isBusy && this.generateBtn && this.generateBtn.dataset.originalText) {
+    } else if (
+      !isBusy &&
+      this.generateBtn &&
+      this.generateBtn.dataset.originalText
+    ) {
       this.generateBtn.textContent = this.generateBtn.dataset.originalText;
       delete this.generateBtn.dataset.originalText;
     }
@@ -230,6 +246,7 @@ export class SplashScene extends Phaser.Scene {
   private startGame() {
     // Clean up DOM overlay
     window.removeEventListener("resize", this.onWindowResize);
+    window.removeEventListener("orientationchange", this.onWindowResize);
     if (this.overlayRoot) {
       this.overlayRoot.remove();
       this.overlayRoot = undefined;

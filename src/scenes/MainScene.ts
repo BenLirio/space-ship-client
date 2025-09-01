@@ -30,6 +30,7 @@ export class MainScene extends Phaser.Scene {
   private grid?: Phaser.GameObjects.TileSprite;
   private syncing = false;
   private pendingSync = false;
+  private resizeListenerBound = false;
 
   constructor() {
     super("main");
@@ -61,15 +62,17 @@ export class MainScene extends Phaser.Scene {
       setLocalShipImageUrl(data.shipImageUrl);
     }
 
-    // Only need to reposition joystick on resize now (no wrapping in infinite space)
+    // Resize/orientation handling
     this.scale.on("resize", () => {
-      this.positionJoystick();
       this.resizeGrid();
+      this.maybeToggleJoystick();
+      this.positionJoystick();
     });
+    window.addEventListener("orientationchange", this.handleOrientationChange);
+    this.resizeListenerBound = true;
 
-    if (this.sys.game.device.input.touch) {
-      this.joystick = new VirtualJoystick(this, 90, this.scale.height - 90, 80);
-    }
+    // Initial joystick decision
+    this.maybeToggleJoystick();
     this.positionJoystick();
 
     // No external loader panel in new flow.
@@ -134,6 +137,36 @@ export class MainScene extends Phaser.Scene {
     if (!this.joystick) return;
     // Instead of destroying (which drops active touch) just move center.
     this.joystick.setCenter(90, this.scale.height - 90);
+  }
+
+  private handleOrientationChange = () => {
+    // Delay a tick so innerWidth/Height settle
+    setTimeout(() => {
+      this.maybeToggleJoystick();
+      this.positionJoystick();
+    }, 60);
+  };
+
+  private shouldShowJoystick(): boolean {
+    const isTouch = this.sys.game.device.input.touch;
+    if (!isTouch) return false; // never show if no touch capability
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const isSmallViewport = w <= 1100 || h <= 800; // treat large desktop touch screens as desktop
+    const ua = navigator.userAgent.toLowerCase();
+    const mobileUA =
+      /iphone|ipad|ipod|android|mobile|silk|kindle|playbook/.test(ua);
+    return isTouch && (mobileUA || isSmallViewport);
+  }
+
+  private maybeToggleJoystick() {
+    const want = this.shouldShowJoystick();
+    if (want && !this.joystick) {
+      this.joystick = new VirtualJoystick(this, 90, this.scale.height - 90, 80);
+    } else if (!want && this.joystick) {
+      this.joystick.destroy();
+      this.joystick = undefined;
+    }
   }
 
   private createBackgroundGrid() {
@@ -279,5 +312,16 @@ export class MainScene extends Phaser.Scene {
 
   shutdown() {
     if (this.unsubscribe) this.unsubscribe();
+    if (this.resizeListenerBound) {
+      window.removeEventListener(
+        "orientationchange",
+        this.handleOrientationChange
+      );
+      this.resizeListenerBound = false;
+    }
+    if (this.joystick) {
+      this.joystick.destroy();
+      this.joystick = undefined;
+    }
   }
 }
