@@ -2,7 +2,6 @@ import Phaser from "phaser";
 import {
   preloadShip,
   createShipSprite,
-  updateShip,
   applyStandardShipScale,
   SHIP_TARGET_MAX_SIZE,
 } from "../ship/ship";
@@ -13,7 +12,6 @@ import {
   subscribe,
   getRemoteShips,
   getClientId,
-  setLocalShipAccessor,
   setLocalShipImageUrl,
   setInputSnapshot,
 } from "../clientState";
@@ -21,9 +19,7 @@ import { RemoteShipSnapshot } from "../types/state";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private ship!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-  private baseSpeed = 420; // forward speed (pixels/sec)
-  private rotationSpeed = Phaser.Math.DegToRad(250); // A / D rotation speed
+  private baseSpeed = 420; // still used for joystick -> input magnitude (not local movement)
   private inputState!: ArcadeInput;
   private joystick?: VirtualJoystick;
   private remoteSprites = new Map<
@@ -32,6 +28,7 @@ export class MainScene extends Phaser.Scene {
   >();
   private unsubscribe?: () => void;
   private grid?: Phaser.GameObjects.TileSprite;
+  private cameraFollowing = false;
 
   constructor() {
     super("main");
@@ -56,23 +53,9 @@ export class MainScene extends Phaser.Scene {
       keys: extraKeys,
     };
 
-    const textureKey =
-      data?.shipTexture && this.textures.exists(data.shipTexture)
-        ? data.shipTexture
-        : "ship";
-    this.ship = createShipSprite(
-      this,
-      this.scale.width / 2,
-      this.scale.height / 2,
-      textureKey
-    );
-    applyStandardShipScale(this.ship);
-
-    // Register accessor for outbound state sync
-    setLocalShipAccessor(() => ({
-      position: { x: this.ship.x, y: this.ship.y },
-      rotation: this.ship.rotation,
-    }));
+    // We no longer create / simulate a local-authority ship. We'll wait for the
+    // server snapshot (which now also includes our own ship) and spawn it there.
+    // (Optional placeholder could be added here if desired.)
     if (data?.shipImageUrl) {
       setLocalShipImageUrl(data.shipImageUrl);
     }
@@ -99,38 +82,14 @@ export class MainScene extends Phaser.Scene {
     // (If later you want true dynamic expansion, you can watch ship position and enlarge as needed.)
     const HUGE = 10_000_000; // 10 million px each direction (arbitrary large)
     this.physics.world.setBounds(-HUGE, -HUGE, HUGE * 2, HUGE * 2);
-    // Follow the player's ship with a smoothing factor.
-    this.cameras.main.startFollow(this.ship, true, 0.15, 0.15);
+    // Camera follow will be attached once our ship snapshot arrives.
     // Optional: set a modest zoom so ship isn't tiny when world is conceptually huge.
     this.cameras.main.setZoom(1); // Adjust if you want closer (e.g., 1.2) or farther (e.g., 0.8).
   }
 
   update(time: number, delta: number) {
     this.updateGridScroll();
-    if (!this.areControlsSuppressed()) {
-      if (!this.joystick || !this.joystick.active) {
-        updateShip(
-          this,
-          this.ship,
-          this.inputState,
-          { baseSpeed: this.baseSpeed, rotationSpeed: this.rotationSpeed },
-          delta
-        );
-      }
-      if (this.joystick && this.joystick.active) {
-        const angle = this.joystick.angle; // 0 is to the right
-        this.ship.rotation = angle + Math.PI / 2;
-        const speed = this.baseSpeed * this.joystick.strength;
-        const forwardAngle = this.ship.rotation - Math.PI / 2;
-        this.ship.body.velocity.x = Math.cos(forwardAngle) * speed;
-        this.ship.body.velocity.y = Math.sin(forwardAngle) * speed;
-      }
-    } else {
-      // Damp movement while controls suppressed for predictability
-      this.ship.body.velocity.scale(0.9);
-    }
-
-    // Build and publish InputSnapshot every frame (cheap enough) for outbound sync
+    // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
       if (k && k.isDown && name) keysDown.add(name);
@@ -231,9 +190,7 @@ export class MainScene extends Phaser.Scene {
   private async syncRemoteShips() {
     const clientId = getClientId();
     const snapshots = getRemoteShips();
-    const wantedIds = new Set(
-      Object.keys(snapshots).filter((id) => id !== clientId)
-    );
+    const wantedIds = new Set(Object.keys(snapshots));
 
     // Remove sprites no longer present
     for (const [id, sprite] of this.remoteSprites) {
@@ -243,29 +200,40 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    // Add/update sprites
+    // Add/update sprites (including our own)
     for (const id of wantedIds) {
       const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
       if (!snap) continue;
       let sprite = this.remoteSprites.get(id);
+      const desiredTexKey = await this.ensureTextureFor(
+        snap.appearance?.shipImageUrl
+      );
       if (!sprite) {
-        const texKey = await this.ensureTextureFor(
-          snap.appearance?.shipImageUrl
-        );
         sprite = createShipSprite(
           this,
           snap.physics.position.x,
           snap.physics.position.y,
-          texKey
+          desiredTexKey
         );
         applyStandardShipScale(sprite);
-        // Removed tint so remote ships show original colors
         this.remoteSprites.set(id, sprite);
+      } else {
+        // Update texture if changed
+        if (sprite.texture.key !== desiredTexKey) {
+          sprite.setTexture(desiredTexKey);
+          applyStandardShipScale(sprite);
+        }
       }
-      // Update physics snapshot
+      // Server-authoritative transform
       sprite.x = snap.physics.position.x;
       sprite.y = snap.physics.position.y;
       sprite.rotation = snap.physics.rotation;
+
+      // Attach camera follow once our own sprite appears
+      if (id === clientId && !this.cameraFollowing) {
+        this.cameras.main.startFollow(sprite, true, 0.15, 0.15);
+        this.cameraFollowing = true;
+      }
     }
   }
 
