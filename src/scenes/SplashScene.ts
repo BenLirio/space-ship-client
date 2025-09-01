@@ -180,7 +180,6 @@ export class SplashScene extends Phaser.Scene {
       this.generateInFlight = true;
       this.awaitingShip = true;
       this.awaitedId = getClientId();
-      this.status(""); // removed redundant message
       this.setBusy(true);
       ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
       // Listen for info & error events globally (added in main.ts)
@@ -232,7 +231,6 @@ export class SplashScene extends Phaser.Scene {
     const mine = (ships as any)[id];
     if (mine && mine.appearance?.shipImageUrl) {
       this.generatedImageUrl = mine.appearance.shipImageUrl;
-      this.status("Ship ready! Starting...");
       this.cleanupGenerationListeners();
       this.awaitingShip = false;
       this.generateInFlight = false;
