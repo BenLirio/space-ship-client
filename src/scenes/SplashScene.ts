@@ -45,7 +45,7 @@ export class SplashScene extends Phaser.Scene {
           <p class="splash-sub">Generate your unique ship with a prompt<br><span class="splash-sub-alt">and fly around with others in realtime</span></p>
           <div class="gh-star-wrap">
             <!-- GitHub star button -->
-            <a class="github-button" href="https://github.com/BenLirio/space-ship-generator" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" aria-label="Star BenLirio/space-ship-generator on GitHub">Star</a>
+            <a class="github-button" href="https://github.com/BenLirio/space-ship-generator" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star BenLirio/space-ship-generator on GitHub">Star</a>
             <a class="discord-link" href="https://discord.com/invite/F69uzFtgpT" target="_blank" rel="noopener" aria-label="Join our Discord (opens in new tab)">Join our Discord</a>
             <a class="banana-link" href="https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/" target="_blank" rel="noopener" aria-label="Model info (opens in new tab)">🍌 uses nano banana</a>
           </div>
