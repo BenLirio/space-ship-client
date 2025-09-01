@@ -7,6 +7,7 @@ import {
   updateRemoteShips,
   getClientId,
   getInputSnapshot,
+  updateProjectiles,
 } from "./clientState";
 import { ServerMessage } from "./types/websocket";
 
@@ -85,8 +86,12 @@ function connectWebSocket() {
           }
           case "gameState": {
             const ships = (msg.payload as any)?.ships;
+            const projectiles = (msg.payload as any)?.projectiles;
             if (ships && typeof ships === "object") {
               updateRemoteShips(ships as any);
+            }
+            if (Array.isArray(projectiles)) {
+              updateProjectiles(projectiles as any);
             }
             break;
           }

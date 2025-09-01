@@ -11,3 +11,13 @@ export interface InputSnapshot {
   keysDown: Set<string>;
   joystick: { x: number; y: number };
 }
+
+// Server-authoritative projectile snapshot
+export interface ProjectileSnapshot {
+  id: string;
+  ownerId: string;
+  position: { x: number; y: number };
+  velocity: { x: number; y: number };
+  rotation: number; // radians
+  createdAt: number; // epoch ms
+}

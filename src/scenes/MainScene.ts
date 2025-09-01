@@ -15,8 +15,9 @@ import {
   getClientId,
   setLocalShipImageUrl,
   setInputSnapshot,
+  getProjectiles,
 } from "../clientState";
-import { RemoteShipSnapshot } from "../types/state";
+import { RemoteShipSnapshot, ProjectileSnapshot } from "../types/state";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -28,6 +29,10 @@ export class MainScene extends Phaser.Scene {
     string,
     Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
   >();
+  private projectileSprites = new Map<string, Phaser.GameObjects.Arc>();
+  // For dead-reckoning between snapshots
+  private lastProjectileSync = 0;
+  private static readonly MAX_PROJECTILES_RENDERED = 500; // safety cap
   private unsubscribe?: () => void;
   private grid?: Phaser.GameObjects.TileSprite;
   private syncing = false;
@@ -139,6 +144,9 @@ export class MainScene extends Phaser.Scene {
       keysDown.add("SPACE");
     }
     setInputSnapshot({ keysDown, joystick: { x: jx, y: jy } });
+
+    // Dead-reckon projectiles (client-side extrapolation until next snapshot)
+    this.extrapolateProjectiles(delta);
   }
 
   // Wrapping removed: movement is unbounded. (Keep placeholder methods if future constraints needed.)
@@ -333,6 +341,9 @@ export class MainScene extends Phaser.Scene {
           }
         }
       });
+
+      // After ship sync, also sync projectiles (ships may influence styling)
+      this.syncProjectiles();
     } finally {
       this.syncing = false;
       if (this.pendingSync) {
@@ -340,6 +351,82 @@ export class MainScene extends Phaser.Scene {
         // run again with latest state
         this.syncRemoteShips();
       }
+    }
+  }
+
+  private syncProjectiles() {
+    const snapshots = getProjectiles();
+    const allIds = Object.keys(snapshots);
+    // Performance cap: choose most recent (by createdAt) if over cap
+    const ids = new Set(
+      allIds
+        .map((id) => ({
+          id,
+          createdAt: (snapshots as any)[id]?.createdAt || 0,
+        }))
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, MainScene.MAX_PROJECTILES_RENDERED)
+        .map((o) => o.id)
+    );
+    // Remove stale
+    for (const [id, arc] of this.projectileSprites) {
+      if (!ids.has(id)) {
+        arc.destroy();
+        this.projectileSprites.delete(id);
+      }
+    }
+    // Add/update
+    for (const id of ids) {
+      const p: ProjectileSnapshot | undefined = (snapshots as any)[id];
+      if (!p) continue;
+      let arc = this.projectileSprites.get(id);
+      if (!arc) {
+        arc = this.add.circle(p.position.x, p.position.y, 6, 0xffffff, 1);
+        arc.setData("projectileId", id);
+        arc.setDepth(50); // above ships (ships default depth 0)
+        this.projectileSprites.set(id, arc);
+      }
+      // Color tint: self vs others
+      const ownerIsSelf = p.ownerId === getClientId();
+      const color = ownerIsSelf ? 0x6cf26c : 0xb5c2cc;
+      arc.setFillStyle(color, 1);
+      arc.x = p.position.x;
+      arc.y = p.position.y;
+    }
+    this.lastProjectileSync = performance.now();
+  }
+
+  private extrapolateProjectiles(delta: number) {
+    if (!this.projectileSprites.size) return;
+    const snapshots = getProjectiles();
+    const dt = delta / 1000;
+    const now = performance.now();
+    for (const [id, arc] of this.projectileSprites) {
+      const snap = snapshots[id];
+      if (!snap) continue; // will be cleaned up on next sync
+      // Simple dead-reckoning: pos += velocity * dt
+      arc.x += snap.velocity.x * dt;
+      arc.y += snap.velocity.y * dt;
+      // Optional lifetime fade (3s window)
+      const age = Date.now() - snap.createdAt;
+      const life = 3000;
+      if (age > life) {
+        // If server still keeps it longer, just clamp alpha never negative
+        arc.setAlpha(0.05);
+      } else {
+        const alpha = 1 - age / life;
+        arc.setAlpha(Phaser.Math.Clamp(alpha, 0.1, 1));
+      }
+      // Off-screen skip? We'll rely on Phaser culling implicitly; if desired we could hide.
+      const cam = this.cameras.main;
+      const view = cam.worldView; // Rectangle
+      const margin = 40; // small margin so they pop in gracefully
+      const inView =
+        arc.x >= view.x - margin &&
+        arc.x <= view.right + margin &&
+        arc.y >= view.y - margin &&
+        arc.y <= view.bottom + margin;
+      arc.setVisible(inView);
     }
   }
 
