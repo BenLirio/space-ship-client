@@ -28,7 +28,6 @@ export class MainScene extends Phaser.Scene {
   >();
   private unsubscribe?: () => void;
   private grid?: Phaser.GameObjects.TileSprite;
-  private cameraFollowing = false;
   private idText?: Phaser.GameObjects.Text;
   private syncing = false;
   private pendingSync = false;
@@ -86,8 +85,7 @@ export class MainScene extends Phaser.Scene {
     // (If later you want true dynamic expansion, you can watch ship position and enlarge as needed.)
     const HUGE = 10_000_000; // 10 million px each direction (arbitrary large)
     this.physics.world.setBounds(-HUGE, -HUGE, HUGE * 2, HUGE * 2);
-    // Camera follow will be attached once our ship snapshot arrives.
-    // Optional: set a modest zoom so ship isn't tiny when world is conceptually huge.
+    // Hard follow (no interpolation) will be done manually in update each frame.
     this.cameras.main.setZoom(1); // Adjust if you want closer (e.g., 1.2) or farther (e.g., 0.8).
 
     // Debug ID overlay (top-right)
@@ -108,17 +106,12 @@ export class MainScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     this.updateGridScroll();
-    // If we still haven't attached camera follow but our sprite now exists, attach it.
-    if (!this.cameraFollowing) {
-      const id = getClientId();
-      if (id) {
-        const mySprite = this.remoteSprites.get(id);
-        if (mySprite) {
-          this.cameras.main.startFollow(mySprite, true, 0.15, 0.15);
-          this.cameraFollowing = true;
-          // eslint-disable-next-line no-console
-          console.log("[camera] now following", id);
-        }
+    // Hard follow: center camera exactly on player's ship each frame (no smoothing/interp)
+    const id = getClientId();
+    if (id) {
+      const mySprite = this.remoteSprites.get(id);
+      if (mySprite) {
+        this.cameras.main.centerOn(mySprite.x, mySprite.y);
       }
     }
     // Keep ID overlay updated (cheap)
@@ -286,13 +279,7 @@ export class MainScene extends Phaser.Scene {
         sprite.y = snap.physics.position.y;
         sprite.rotation = snap.physics.rotation;
 
-        // Attach camera follow once our own sprite appears
-        if (id === clientId && !this.cameraFollowing) {
-          this.cameras.main.startFollow(sprite, true, 0.15, 0.15);
-          this.cameraFollowing = true;
-          // eslint-disable-next-line no-console
-          console.log("[camera] attached during sync", id);
-        }
+        // No smooth follow attachment needed; camera centers on player each update.
       }
 
       // Cleanup any stray untracked duplicates (safety net)
