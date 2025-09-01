@@ -42,11 +42,12 @@ export class SplashScene extends Phaser.Scene {
       <div class="splash-stack" role="dialog" aria-labelledby="splash-title">
         <header class="splash-header">
           <h1 id="splash-title" class="splash-title">AI SPACESHIP</h1>
-          <p class="splash-sub">Enter a prompt to generate your ship<br><span class="splash-sub-alt">or start with the default</span></p>
+          <p class="splash-sub">Generate your unique ship with a prompt<br><span class="splash-sub-alt">and fly around with others in realtime</span></p>
           <div class="gh-star-wrap">
             <!-- GitHub star button -->
             <a class="github-button" href="https://github.com/BenLirio/space-ship-generator" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" aria-label="Star BenLirio/space-ship-generator on GitHub">Star</a>
             <a class="discord-link" href="https://discord.com/invite/F69uzFtgpT" target="_blank" rel="noopener" aria-label="Join our Discord (opens in new tab)">Join our Discord</a>
+            <a class="banana-link" href="https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/" target="_blank" rel="noopener" aria-label="Model info (opens in new tab)">🍌 uses nano banana</a>
           </div>
         </header>
         <form class="splash-form" autocomplete="off">
@@ -135,6 +136,9 @@ export class SplashScene extends Phaser.Scene {
   .gh-star-wrap .discord-link { display:inline-flex; align-items:center; font-size:14px; line-height:1; padding:8px 14px; border-radius:999px; background:#5865F2; color:#fff; text-decoration:none; font-weight:500; letter-spacing:.3px; border:1px solid #4653c5; box-shadow:0 2px 6px -2px rgba(0,0,0,.5); transition:background .2s, transform .2s; }
   .gh-star-wrap .discord-link:hover { background:#6d79ff; }
   .gh-star-wrap .discord-link:active { transform:translateY(2px); }
+  .gh-star-wrap .banana-link { display:inline-flex; align-items:center; font-size:14px; line-height:1; padding:8px 14px; border-radius:999px; background:#2e3d25; color:#f5ffcf; text-decoration:none; font-weight:500; letter-spacing:.3px; border:1px solid #425030; box-shadow:0 2px 6px -2px rgba(0,0,0,.5); transition:background .2s, transform .2s; }
+  .gh-star-wrap .banana-link:hover { background:#384b2c; }
+  .gh-star-wrap .banana-link:active { transform:translateY(2px); }
   .splash-form { display:flex; flex-direction:column; gap:12px; background:rgba(12,18,28,.55); border:1px solid rgba(120,160,200,.18); padding:clamp(10px,1.8vw,18px); backdrop-filter:blur(18px) saturate(150%); border-radius:16px; box-shadow:0 6px 30px -8px rgba(0,0,0,.55); width:100%; max-width:100%; }
   .splash-form input { width:100%; max-width:100%; padding:14px 16px; font-size:clamp(14px,1.9vw,18px); background:#0b131d; color:#fff; border:1px solid #284056; border-radius:12px; outline:none; font-family:inherit; transition:border-color .18s, background .18s; }
       .splash-form input:focus { border-color:#4da3ff; background:#0e1824; box-shadow:0 0 0 3px rgba(77,163,255,.28); }
