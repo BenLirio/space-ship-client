@@ -6,8 +6,6 @@ import {
   setClientId,
   updateRemoteShips,
   getClientId,
-  getLocalShipAccessor,
-  getLocalShipImageUrl,
   getInputSnapshot,
 } from "./clientState";
 import { ServerMessage } from "./types/websocket";
@@ -117,29 +115,12 @@ function connectWebSocket() {
     });
     ws.addEventListener("message", handleServerMessage);
 
-    // Periodically send local ship state (30 Hz)
-    const STATE_SEND_HZ = 30;
+    // Periodically send just the player input snapshot (30 Hz). Server will derive ship state.
+    const INPUT_SEND_HZ = 30;
     const interval = setInterval(() => {
       const id = getClientId();
-      // We still require we've been assigned an id (server can infer identity from connection)
       if (!id || ws.readyState !== WebSocket.OPEN) return;
-      const shipFn = getLocalShipAccessor();
-      if (!shipFn) return;
-      const ship = shipFn();
-      const msg = {
-        type: "shipState",
-        payload: {
-          physics: {
-            position: { x: ship.position.x, y: ship.position.y },
-            rotation: ship.rotation,
-          },
-          appearance: {
-            shipImageUrl: getLocalShipImageUrl() || "",
-          },
-        },
-      } as const;
       try {
-        ws.send(JSON.stringify(msg));
         const input = getInputSnapshot();
         if (input) {
           ws.send(
@@ -154,9 +135,9 @@ function connectWebSocket() {
         }
       } catch (e) {
         // eslint-disable-next-line no-console
-        console.warn("[ws] failed to send shipState", e);
+        console.warn("[ws] failed to send inputSnapshot", e);
       }
-    }, 1000 / STATE_SEND_HZ);
+    }, 1000 / INPUT_SEND_HZ);
 
     ws.addEventListener("close", () => clearInterval(interval));
   } catch (e) {
