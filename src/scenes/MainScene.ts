@@ -8,6 +8,7 @@ import {
 import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
+import { VirtualFireButton } from "../mobile/VirtualFireButton";
 import {
   subscribe,
   getRemoteShips,
@@ -22,6 +23,7 @@ export class MainScene extends Phaser.Scene {
   private baseSpeed = 420; // still used for joystick -> input magnitude (not local movement)
   private inputState!: ArcadeInput;
   private joystick?: VirtualJoystick;
+  private fireButton?: VirtualFireButton;
   private remoteSprites = new Map<
     string,
     Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
@@ -70,6 +72,7 @@ export class MainScene extends Phaser.Scene {
       this.resizeGrid();
       this.maybeToggleJoystick();
       this.positionJoystick();
+      this.positionFireButton();
     });
     window.addEventListener("orientationchange", this.handleOrientationChange);
     this.resizeListenerBound = true;
@@ -77,6 +80,7 @@ export class MainScene extends Phaser.Scene {
     // Initial joystick decision
     this.maybeToggleJoystick();
     this.positionJoystick();
+    this.positionFireButton();
 
     // No external loader panel in new flow.
 
@@ -130,6 +134,10 @@ export class MainScene extends Phaser.Scene {
       jx = Math.cos(angle) * strength;
       jy = Math.sin(angle) * strength;
     }
+    // Inject SPACE when fire button pressed (mobile) before snapshot capture
+    if (this.fireButton?.active) {
+      keysDown.add("SPACE");
+    }
     setInputSnapshot({ keysDown, joystick: { x: jx, y: jy } });
   }
 
@@ -144,11 +152,21 @@ export class MainScene extends Phaser.Scene {
     this.joystick.setCenter(90, this.scale.height - 90);
   }
 
+  private positionFireButton() {
+    if (!this.fireButton) return;
+    const padding = 90;
+    this.fireButton.setPosition(
+      this.scale.width - padding,
+      this.scale.height - padding
+    );
+  }
+
   private handleOrientationChange = () => {
     // Delay a tick so innerWidth/Height settle
     setTimeout(() => {
       this.maybeToggleJoystick();
       this.positionJoystick();
+      this.positionFireButton();
     }, 60);
   };
 
@@ -168,9 +186,19 @@ export class MainScene extends Phaser.Scene {
     const want = this.shouldShowJoystick();
     if (want && !this.joystick) {
       this.joystick = new VirtualJoystick(this, 90, this.scale.height - 90, 80);
+      this.fireButton = new VirtualFireButton(
+        this,
+        this.scale.width - 90,
+        this.scale.height - 90,
+        70
+      );
     } else if (!want && this.joystick) {
       this.joystick.destroy();
       this.joystick = undefined;
+      if (this.fireButton) {
+        this.fireButton.destroy();
+        this.fireButton = undefined;
+      }
     }
   }
 
@@ -327,6 +355,10 @@ export class MainScene extends Phaser.Scene {
     if (this.joystick) {
       this.joystick.destroy();
       this.joystick = undefined;
+    }
+    if (this.fireButton) {
+      this.fireButton.destroy();
+      this.fireButton = undefined;
     }
   }
 }
