@@ -4,14 +4,18 @@ import {
   loadExternalShipTexture,
   applyStandardShipScale,
 } from "../ship/ship";
-import { GENERATE_SHIP_URL, logConfigOnce } from "../config";
+import { logConfigOnce } from "../config";
+import { subscribe, getClientId, getRemoteShips } from "../clientState";
 
 export class SplashScene extends Phaser.Scene {
   private formEl?: HTMLDivElement;
   private statusEl?: HTMLDivElement;
   private generateInFlight = false;
-  private generatedKey?: string;
-  private generatedImageUrl?: string;
+  private generatedImageUrl?: string; // Only need URL now; texture loaded in MainScene
+  private unsubscribeState?: () => void;
+  private awaitingShip = false;
+  private awaitedId?: string;
+  private timeoutHandle?: number;
 
   constructor() {
     super("splash");
@@ -118,10 +122,10 @@ export class SplashScene extends Phaser.Scene {
     this.formEl = root;
     this.statusEl = status;
 
-    genBtn.addEventListener("click", async () => {
+    genBtn.addEventListener("click", () => {
       if (this.generateInFlight) return;
       const prompt = input.value.trim();
-      await this.handleGenerate(prompt);
+      this.handleGenerate(prompt);
     });
     skipBtn.addEventListener("click", () => {
       // Notify server we are proceeding with default ship (no generation)
@@ -155,41 +159,82 @@ export class SplashScene extends Phaser.Scene {
     setTimeout(() => input.focus(), 50);
   }
 
-  private async handleGenerate(prompt: string) {
+  private handleGenerate(prompt: string) {
     if (!prompt) {
       this.status("Enter a prompt or use default.");
       return;
     }
-    const endpoint = GENERATE_SHIP_URL;
-    this.generateInFlight = true;
-    this.status("Generating ship...");
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const text = await res.text();
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("Bad JSON");
+      const ws: WebSocket | undefined = (window as any).ws;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        this.status("WebSocket not connected yet.");
+        return;
       }
-      if (!res.ok) throw new Error(data?.message || `Status ${res.status}`);
-      const imageUrl: string | undefined = data?.imageUrl;
-      if (!imageUrl) throw new Error("No imageUrl returned");
-      this.status("Downloading ship texture...");
-      const key = await loadExternalShipTexture(this, imageUrl);
-      // Ensure proper scaling once we instantiate in main scene
-      this.generatedKey = key;
-      this.generatedImageUrl = imageUrl;
-      this.status("Ship ready! Starting...");
-      setTimeout(() => this.startGame(), 400);
+      this.generateInFlight = true;
+      this.awaitingShip = true;
+      this.awaitedId = getClientId();
+      this.status("Generating ship...");
+      ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
+      // Listen for info & error events globally (added in main.ts)
+      window.addEventListener("ws-info", this.onWsInfo as any);
+      window.addEventListener("ws-error", this.onWsError as any);
+      // Subscribe to state updates to detect when our ship appears
+      this.unsubscribeState = subscribe(() => this.checkForGeneratedShip());
+      // Timeout fallback
+      this.timeoutHandle = window.setTimeout(() => {
+        if (this.awaitingShip) {
+          this.status("Timeout waiting for ship. You can retry.");
+          this.cleanupGenerationListeners();
+          this.generateInFlight = false;
+          this.awaitingShip = false;
+        }
+      }, 30000);
     } catch (e: any) {
-      this.status("Generation failed: " + (e.message || e));
-    } finally {
+      this.status("Failed to send prompt: " + (e.message || e));
       this.generateInFlight = false;
+    }
+  }
+
+  private onWsInfo = (ev: CustomEvent) => {
+    if (!this.awaitingShip) return; // ignore after done
+    const msg = ev.detail;
+    if (typeof msg === "string") this.status(msg);
+  };
+
+  private onWsError = (ev: CustomEvent) => {
+    const msg = ev.detail;
+    this.status("Error: " + msg);
+    this.cleanupGenerationListeners();
+    this.generateInFlight = false;
+    this.awaitingShip = false;
+  };
+
+  private checkForGeneratedShip() {
+    if (!this.awaitingShip) return;
+    const id = this.awaitedId;
+    if (!id) return;
+    const ships = getRemoteShips();
+    const mine = (ships as any)[id];
+    if (mine && mine.appearance?.shipImageUrl) {
+      this.generatedImageUrl = mine.appearance.shipImageUrl;
+      this.status("Ship ready! Starting...");
+      this.cleanupGenerationListeners();
+      this.awaitingShip = false;
+      this.generateInFlight = false;
+      setTimeout(() => this.startGame(), 400);
+    }
+  }
+
+  private cleanupGenerationListeners() {
+    window.removeEventListener("ws-info", this.onWsInfo as any);
+    window.removeEventListener("ws-error", this.onWsError as any);
+    if (this.unsubscribeState) {
+      this.unsubscribeState();
+      this.unsubscribeState = undefined;
+    }
+    if (this.timeoutHandle) {
+      clearTimeout(this.timeoutHandle);
+      this.timeoutHandle = undefined;
     }
   }
 
@@ -204,7 +249,6 @@ export class SplashScene extends Phaser.Scene {
       this.formEl = undefined;
     }
     this.scene.start("main", {
-      shipTexture: this.generatedKey,
       shipImageUrl: this.generatedImageUrl,
     });
   }

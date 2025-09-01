@@ -77,6 +77,10 @@ function connectWebSocket() {
           case "info": {
             // eslint-disable-next-line no-console
             console.log("[ws][info]", msg.payload);
+            // Bubble to UI (SplashScene listens)
+            window.dispatchEvent(
+              new CustomEvent("ws-info", { detail: msg.payload })
+            );
             break;
           }
           case "gameState": {
@@ -89,6 +93,9 @@ function connectWebSocket() {
           case "error": {
             // eslint-disable-next-line no-console
             console.error("[ws][error]", msg.payload);
+            window.dispatchEvent(
+              new CustomEvent("ws-error", { detail: msg.payload })
+            );
             break;
           }
           default: {
