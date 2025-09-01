@@ -31,6 +31,7 @@ export class MainScene extends Phaser.Scene {
   private syncing = false;
   private pendingSync = false;
   private resizeListenerBound = false;
+  private spaceKey?: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super("main");
@@ -49,6 +50,8 @@ export class MainScene extends Phaser.Scene {
       string,
       Phaser.Input.Keyboard.Key
     >;
+    // Add SPACE key separately (not part of Phaser's built-in CursorKeys set)
+    this.spaceKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.inputState = {
       cursors: this.cursors, // kept for potential future use
@@ -117,6 +120,8 @@ export class MainScene extends Phaser.Scene {
     captureKey(extra.W, "W");
     captureKey(extra.A, "A");
     captureKey(extra.D, "D");
+    // Space (fire / action)
+    captureKey(this.spaceKey, "SPACE");
     let jx = 0;
     let jy = 0;
     if (this.joystick && this.joystick.active) {
