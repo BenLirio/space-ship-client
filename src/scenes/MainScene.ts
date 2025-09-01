@@ -28,7 +28,6 @@ export class MainScene extends Phaser.Scene {
   >();
   private unsubscribe?: () => void;
   private grid?: Phaser.GameObjects.TileSprite;
-  private idText?: Phaser.GameObjects.Text;
   private syncing = false;
   private pendingSync = false;
 
@@ -66,7 +65,6 @@ export class MainScene extends Phaser.Scene {
     this.scale.on("resize", () => {
       this.positionJoystick();
       this.resizeGrid();
-      this.positionIdText();
     });
 
     if (this.sys.game.device.input.touch) {
@@ -87,21 +85,6 @@ export class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(-HUGE, -HUGE, HUGE * 2, HUGE * 2);
     // Hard follow (no interpolation) will be done manually in update each frame.
     this.cameras.main.setZoom(1); // Adjust if you want closer (e.g., 1.2) or farther (e.g., 0.8).
-
-    // Debug ID overlay (top-right)
-    this.idText = this.add
-      .text(0, 0, "id: (pending)", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "14px",
-        color: "#9cf",
-        stroke: "#000",
-        strokeThickness: 2,
-      })
-      .setScrollFactor(0)
-      .setDepth(1000)
-      .setOrigin(1, 0);
-    this.positionIdText();
-    this.updateIdOverlay();
   }
 
   update(time: number, delta: number) {
@@ -114,8 +97,6 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.centerOn(mySprite.x, mySprite.y);
       }
     }
-    // Keep ID overlay updated (cheap)
-    this.updateIdOverlay();
     // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
@@ -161,16 +142,20 @@ export class MainScene extends Phaser.Scene {
     if (!this.textures.exists(patternKey)) {
       // Create an off-screen graphics object to draw a single cell pattern
       const g = this.make.graphics({ x: 0, y: 0 });
-      const lineColor = 0x444444; // dark grey lines
+      // Softer "pre-blurred" grid: draw two adjacent 1px bands with descending alpha
+      // to reduce high-frequency shimmer when camera scrolls sub-pixel.
+      const lineColor = 0x758089; // slightly lighter
       g.clear();
-      g.lineStyle(1, lineColor, 0.5);
-      // Draw top and left lines only for seamless tiling
-      g.beginPath();
-      g.moveTo(0, 0);
-      g.lineTo(cell, 0);
-      g.moveTo(0, 0);
-      g.lineTo(0, cell);
-      g.strokePath();
+      // Horizontal (top) band: y=0 stronger, y=1 lighter
+      g.fillStyle(lineColor, 0.55);
+      g.fillRect(0, 0, cell, 1);
+      g.fillStyle(lineColor, 0.25);
+      g.fillRect(0, 1, cell, 1);
+      // Vertical (left) band: x=0 stronger, x=1 lighter
+      g.fillStyle(lineColor, 0.55);
+      g.fillRect(0, 0, 1, cell);
+      g.fillStyle(lineColor, 0.25);
+      g.fillRect(1, 0, 1, cell);
       g.generateTexture(patternKey, cell, cell);
       g.destroy();
     }
@@ -186,22 +171,12 @@ export class MainScene extends Phaser.Scene {
     this.grid.setSize(this.scale.width, this.scale.height);
   }
 
-  private positionIdText() {
-    if (!this.idText) return;
-    this.idText.setPosition(this.scale.width - 12, 8);
-  }
-
-  private updateIdOverlay() {
-    if (!this.idText) return;
-    const id = getClientId();
-    this.idText.setText("id: " + (id || "(pending)"));
-  }
-
   private updateGridScroll() {
     if (!this.grid) return;
     const cam = this.cameras.main;
     // Move tile texture relative to camera scroll to anchor grid to world
-    this.grid.setTilePosition(cam.scrollX, cam.scrollY);
+    // Snap to integer pixels to reduce sub-pixel aliasing shimmer
+    this.grid.setTilePosition(Math.round(cam.scrollX), Math.round(cam.scrollY));
   }
 
   private async ensureTextureFor(url?: string) {
