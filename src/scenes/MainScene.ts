@@ -29,6 +29,9 @@ export class MainScene extends Phaser.Scene {
   private unsubscribe?: () => void;
   private grid?: Phaser.GameObjects.TileSprite;
   private cameraFollowing = false;
+  private idText?: Phaser.GameObjects.Text;
+  private syncing = false;
+  private pendingSync = false;
 
   constructor() {
     super("main");
@@ -64,6 +67,7 @@ export class MainScene extends Phaser.Scene {
     this.scale.on("resize", () => {
       this.positionJoystick();
       this.resizeGrid();
+      this.positionIdText();
     });
 
     if (this.sys.game.device.input.touch) {
@@ -85,10 +89,40 @@ export class MainScene extends Phaser.Scene {
     // Camera follow will be attached once our ship snapshot arrives.
     // Optional: set a modest zoom so ship isn't tiny when world is conceptually huge.
     this.cameras.main.setZoom(1); // Adjust if you want closer (e.g., 1.2) or farther (e.g., 0.8).
+
+    // Debug ID overlay (top-right)
+    this.idText = this.add
+      .text(0, 0, "id: (pending)", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "14px",
+        color: "#9cf",
+        stroke: "#000",
+        strokeThickness: 2,
+      })
+      .setScrollFactor(0)
+      .setDepth(1000)
+      .setOrigin(1, 0);
+    this.positionIdText();
+    this.updateIdOverlay();
   }
 
   update(time: number, delta: number) {
     this.updateGridScroll();
+    // If we still haven't attached camera follow but our sprite now exists, attach it.
+    if (!this.cameraFollowing) {
+      const id = getClientId();
+      if (id) {
+        const mySprite = this.remoteSprites.get(id);
+        if (mySprite) {
+          this.cameras.main.startFollow(mySprite, true, 0.15, 0.15);
+          this.cameraFollowing = true;
+          // eslint-disable-next-line no-console
+          console.log("[camera] now following", id);
+        }
+      }
+    }
+    // Keep ID overlay updated (cheap)
+    this.updateIdOverlay();
     // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
@@ -159,6 +193,17 @@ export class MainScene extends Phaser.Scene {
     this.grid.setSize(this.scale.width, this.scale.height);
   }
 
+  private positionIdText() {
+    if (!this.idText) return;
+    this.idText.setPosition(this.scale.width - 12, 8);
+  }
+
+  private updateIdOverlay() {
+    if (!this.idText) return;
+    const id = getClientId();
+    this.idText.setText("id: " + (id || "(pending)"));
+  }
+
   private updateGridScroll() {
     if (!this.grid) return;
     const cam = this.cameras.main;
@@ -188,51 +233,84 @@ export class MainScene extends Phaser.Scene {
   }
 
   private async syncRemoteShips() {
-    const clientId = getClientId();
-    const snapshots = getRemoteShips();
-    const wantedIds = new Set(Object.keys(snapshots));
-
-    // Remove sprites no longer present
-    for (const [id, sprite] of this.remoteSprites) {
-      if (!wantedIds.has(id)) {
-        sprite.destroy();
-        this.remoteSprites.delete(id);
-      }
+    if (this.syncing) {
+      this.pendingSync = true;
+      return;
     }
+    this.syncing = true;
+    try {
+      const clientId = getClientId();
+      const snapshots = getRemoteShips();
+      const wantedIds = new Set(Object.keys(snapshots));
 
-    // Add/update sprites (including our own)
-    for (const id of wantedIds) {
-      const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
-      if (!snap) continue;
-      let sprite = this.remoteSprites.get(id);
-      const desiredTexKey = await this.ensureTextureFor(
-        snap.appearance?.shipImageUrl
-      );
-      if (!sprite) {
-        sprite = createShipSprite(
-          this,
-          snap.physics.position.x,
-          snap.physics.position.y,
-          desiredTexKey
-        );
-        applyStandardShipScale(sprite);
-        this.remoteSprites.set(id, sprite);
-      } else {
-        // Update texture if changed
-        if (sprite.texture.key !== desiredTexKey) {
-          sprite.setTexture(desiredTexKey);
-          applyStandardShipScale(sprite);
+      // Remove sprites no longer present
+      for (const [id, sprite] of this.remoteSprites) {
+        if (!wantedIds.has(id)) {
+          sprite.destroy();
+          this.remoteSprites.delete(id);
         }
       }
-      // Server-authoritative transform
-      sprite.x = snap.physics.position.x;
-      sprite.y = snap.physics.position.y;
-      sprite.rotation = snap.physics.rotation;
 
-      // Attach camera follow once our own sprite appears
-      if (id === clientId && !this.cameraFollowing) {
-        this.cameras.main.startFollow(sprite, true, 0.15, 0.15);
-        this.cameraFollowing = true;
+      // Add/update sprites (including our own)
+      for (const id of wantedIds) {
+        const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
+        if (!snap) continue;
+        let sprite = this.remoteSprites.get(id);
+        const desiredTexKey = await this.ensureTextureFor(
+          snap.appearance?.shipImageUrl
+        );
+
+        if (!sprite) {
+          // Double-check after await to avoid race duplicates
+          sprite = this.remoteSprites.get(id);
+        }
+        if (!sprite) {
+          sprite = createShipSprite(
+            this,
+            snap.physics.position.x,
+            snap.physics.position.y,
+            desiredTexKey
+          );
+          sprite.setData("shipId", id);
+          applyStandardShipScale(sprite);
+          this.remoteSprites.set(id, sprite);
+        } else {
+          // Update texture if changed
+          if (sprite.texture.key !== desiredTexKey) {
+            sprite.setTexture(desiredTexKey);
+            applyStandardShipScale(sprite);
+          }
+        }
+        // Server-authoritative transform
+        sprite.x = snap.physics.position.x;
+        sprite.y = snap.physics.position.y;
+        sprite.rotation = snap.physics.rotation;
+
+        // Attach camera follow once our own sprite appears
+        if (id === clientId && !this.cameraFollowing) {
+          this.cameras.main.startFollow(sprite, true, 0.15, 0.15);
+          this.cameraFollowing = true;
+          // eslint-disable-next-line no-console
+          console.log("[camera] attached during sync", id);
+        }
+      }
+
+      // Cleanup any stray untracked duplicates (safety net)
+      this.children.list.forEach((obj) => {
+        const go = obj as any;
+        if (go?.getData && go.getData("shipId")) {
+          const id: string = go.getData("shipId");
+          if (!this.remoteSprites.has(id)) {
+            go.destroy();
+          }
+        }
+      });
+    } finally {
+      this.syncing = false;
+      if (this.pendingSync) {
+        this.pendingSync = false;
+        // run again with latest state
+        this.syncRemoteShips();
       }
     }
   }
