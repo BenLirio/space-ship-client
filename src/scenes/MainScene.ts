@@ -355,20 +355,17 @@ export class MainScene extends Phaser.Scene {
   private syncProjectiles() {
     const snapshots = getProjectiles();
     const allIds = Object.keys(snapshots);
-    // Ensure the red X texture exists (12x12 with 1px lines)
-    const projectileTexKey = "projectile-x";
+    // Ensure the projectile texture exists: a small white ball (~5px radius)
+    const projectileTexKey = "projectile-ball";
     if (!this.textures.exists(projectileTexKey)) {
       const g = this.make.graphics({ x: 0, y: 0 });
       g.clear();
-      g.lineStyle(1, 0xff0000, 1);
-      const size = 12;
-      g.beginPath();
-      g.moveTo(0, 0);
-      g.lineTo(size, size);
-      g.moveTo(size, 0);
-      g.lineTo(0, size);
-      g.strokePath();
-      g.generateTexture(projectileTexKey, size, size);
+      const radius = 5; // px
+      const diameter = radius * 2;
+      // Slightly larger transparent canvas to avoid clipping antialias edge
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(radius, radius, radius);
+      g.generateTexture(projectileTexKey, diameter, diameter);
       g.destroy();
     }
     // Performance cap: choose most recent (by createdAt) if over cap
