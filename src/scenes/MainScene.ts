@@ -1,10 +1,5 @@
 import Phaser from "phaser";
-import {
-  preloadShip,
-  createShipSprite,
-  applyStandardShipScale,
-  SHIP_TARGET_MAX_SIZE,
-} from "../ship/ship";
+import { preloadShip, createShipSprite, SHIP_TARGET_MAX_SIZE } from "../ship/ship";
 import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
@@ -29,7 +24,8 @@ export class MainScene extends Phaser.Scene {
     string,
     Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
   >();
-  private projectileSprites = new Map<string, Phaser.GameObjects.Arc>();
+  // Projectiles now rendered as 1px red X (Image objects) for precise origin debugging
+  private projectileSprites = new Map<string, Phaser.GameObjects.Image>();
   // For dead-reckoning between snapshots
   private lastProjectileSync = 0;
   private static readonly MAX_PROJECTILES_RENDERED = 500; // safety cap
@@ -314,13 +310,11 @@ export class MainScene extends Phaser.Scene {
             desiredTexKey
           );
           sprite.setData("shipId", id);
-          applyStandardShipScale(sprite);
           this.remoteSprites.set(id, sprite);
         } else {
           // Update texture if changed
           if (sprite.texture.key !== desiredTexKey) {
             sprite.setTexture(desiredTexKey);
-            applyStandardShipScale(sprite);
           }
         }
         // Server-authoritative transform
@@ -357,6 +351,22 @@ export class MainScene extends Phaser.Scene {
   private syncProjectiles() {
     const snapshots = getProjectiles();
     const allIds = Object.keys(snapshots);
+    // Ensure the red X texture exists (12x12 with 1px lines)
+    const projectileTexKey = "projectile-x";
+    if (!this.textures.exists(projectileTexKey)) {
+      const g = this.make.graphics({ x: 0, y: 0 });
+      g.clear();
+      g.lineStyle(1, 0xff0000, 1);
+      const size = 12;
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(size, size);
+      g.moveTo(size, 0);
+      g.lineTo(0, size);
+      g.strokePath();
+      g.generateTexture(projectileTexKey, size, size);
+      g.destroy();
+    }
     // Performance cap: choose most recent (by createdAt) if over cap
     const ids = new Set(
       allIds
@@ -379,19 +389,16 @@ export class MainScene extends Phaser.Scene {
     for (const id of ids) {
       const p: ProjectileSnapshot | undefined = (snapshots as any)[id];
       if (!p) continue;
-      let arc = this.projectileSprites.get(id);
-      if (!arc) {
-        arc = this.add.circle(p.position.x, p.position.y, 6, 0xffffff, 1);
-        arc.setData("projectileId", id);
-        arc.setDepth(50); // above ships (ships default depth 0)
-        this.projectileSprites.set(id, arc);
+      let img = this.projectileSprites.get(id);
+      if (!img) {
+        img = this.add.image(p.position.x, p.position.y, projectileTexKey);
+        img.setOrigin(0.5, 0.5);
+        img.setData("projectileId", id);
+        img.setDepth(50); // above ships
+        this.projectileSprites.set(id, img);
       }
-      // Color tint: self vs others
-      const ownerIsSelf = p.ownerId === getClientId();
-      const color = ownerIsSelf ? 0x6cf26c : 0xb5c2cc;
-      arc.setFillStyle(color, 1);
-      arc.x = p.position.x;
-      arc.y = p.position.y;
+      img.x = p.position.x;
+      img.y = p.position.y;
     }
     this.lastProjectileSync = performance.now();
   }

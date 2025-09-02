@@ -26,8 +26,6 @@ export function createShipSprite(
   sprite.setDamping(true);
   sprite.setDrag(0.98);
   sprite.setMaxVelocity(600, 600);
-  // Apply standard scale (only scales down large textures)
-  applyStandardShipScale(sprite);
   return sprite;
 }
 
