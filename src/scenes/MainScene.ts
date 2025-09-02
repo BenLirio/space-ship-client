@@ -1,5 +1,9 @@
 import Phaser from "phaser";
-import { preloadShip, createShipSprite, SHIP_TARGET_MAX_SIZE } from "../ship/ship";
+import {
+  preloadShip,
+  createShipSprite,
+  SHIP_TARGET_MAX_SIZE,
+} from "../ship/ship";
 import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
