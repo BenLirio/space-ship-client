@@ -53,7 +53,8 @@ export class MainScene extends Phaser.Scene {
     this.createBackgroundGrid();
     this.cursors = this.input.keyboard!.createCursorKeys();
     const kb = this.input.keyboard!;
-    const extraKeys = kb.addKeys({ W: "W", A: "A", D: "D" }) as Record<
+    // Include S so backward / reverse input can be transmitted to server
+    const extraKeys = kb.addKeys({ W: "W", A: "A", S: "S", D: "D" }) as Record<
       string,
       Phaser.Input.Keyboard.Key
     >;
@@ -128,6 +129,7 @@ export class MainScene extends Phaser.Scene {
     >;
     captureKey(extra.W, "W");
     captureKey(extra.A, "A");
+    captureKey(extra.S, "S");
     captureKey(extra.D, "D");
     // Space (fire / action)
     captureKey(this.spaceKey, "SPACE");
