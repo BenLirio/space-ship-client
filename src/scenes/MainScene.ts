@@ -51,6 +51,9 @@ export class MainScene extends Phaser.Scene {
   create(data: { shipTexture?: string; shipImageUrl?: string }) {
     // Background grid first so it's behind everything
     this.createBackgroundGrid();
+    // Allow multiple simultaneous touch points (joystick + fire button, etc.)
+    // By default Phaser only tracks a single active pointer. Add a few extras.
+    this.input.addPointer(3); // mouse/primary + 3 more = up to 4 concurrent touches
     this.cursors = this.input.keyboard!.createCursorKeys();
     const kb = this.input.keyboard!;
     // Include S so backward / reverse input can be transmitted to server
