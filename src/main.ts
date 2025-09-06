@@ -9,8 +9,9 @@ import {
   getInputSnapshot,
   updateProjectiles,
 } from "./clientState";
-import { ServerMessage, ScoreboardPayload } from "./types/websocket";
+import { ScoreboardPayload } from "./types/websocket";
 import { updateScoreboard } from "./clientState";
+import { createRouter, parseMessage } from "./net/messages";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -41,89 +42,45 @@ function connectWebSocket() {
     (window as any).ws = ws; // expose for debugging in console
     // Structured server message type imported from types
 
-    function handleServerMessage(ev: MessageEvent) {
-      const raw = ev.data;
-      // Attempt to parse JSON if it's a string; otherwise treat as already-parsed
-      let parsed: unknown = raw;
-      if (typeof raw === "string") {
-        try {
-          parsed = JSON.parse(raw);
-        } catch {
-          // eslint-disable-next-line no-console
-          console.log("[ws][unparseable]", raw);
-          return;
-        }
-      }
-      // Validate shape
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        typeof (parsed as { type?: unknown }).type === "string"
-      ) {
-        const msg = parsed as ServerMessage;
-        switch (msg.type) {
-          case "connected": {
-            // Expect payload shape: { id: string }
-            const id = (msg.payload as any)?.id;
-            if (typeof id === "string" && id) {
-              setClientId(id);
-            } else {
-              // eslint-disable-next-line no-console
-              console.warn(
-                "[ws][connected] missing id in payload",
-                msg.payload
-              );
-            }
-            break;
-          }
-          case "info": {
-            // eslint-disable-next-line no-console
-            console.log("[ws][info]", msg.payload);
-            // Bubble to UI (SplashScene listens)
-            window.dispatchEvent(
-              new CustomEvent("ws-info", { detail: msg.payload })
-            );
-            break;
-          }
-          case "gameState": {
-            const ships = (msg.payload as any)?.ships;
-            const projectiles = (msg.payload as any)?.projectiles;
-            if (ships && typeof ships === "object") {
-              updateRemoteShips(ships as any);
-            }
-            if (Array.isArray(projectiles)) {
-              updateProjectiles(projectiles as any);
-            }
-            break;
-          }
-          case "scoreboard": {
-            const payload = msg.payload as ScoreboardPayload;
-            if (payload && Array.isArray(payload.items)) {
-              updateScoreboard(payload.items as any);
-              // also broadcast DOM event for any non-Phaser UI (optional)
-              window.dispatchEvent(
-                new CustomEvent("ws-scoreboard", { detail: payload.items })
-              );
-            }
-            break;
-          }
-          case "error": {
-            // eslint-disable-next-line no-console
-            console.error("[ws][error]", msg.payload);
-            window.dispatchEvent(
-              new CustomEvent("ws-error", { detail: msg.payload })
-            );
-            break;
-          }
-          default: {
-            // eslint-disable-next-line no-console
-            console.log("[ws][message]", msg);
-          }
-        }
-      } else {
+    const router = createRouter({
+      connected: (msg) => {
+        setClientId(msg.payload.id);
+      },
+      info: (msg) => {
         // eslint-disable-next-line no-console
-        console.log("[ws][unstructured]", raw);
+        console.log("[ws][info]", msg.payload);
+        window.dispatchEvent(
+          new CustomEvent("ws-info", { detail: msg.payload })
+        );
+      },
+      gameState: (msg) => {
+        updateRemoteShips(msg.payload.ships as any);
+        updateProjectiles(msg.payload.projectiles as any);
+      },
+      scoreboard: (msg) => {
+        const payload = msg.payload as ScoreboardPayload;
+        updateScoreboard(payload.items as any);
+        window.dispatchEvent(
+          new CustomEvent("ws-scoreboard", { detail: payload.items })
+        );
+      },
+      error: (msg) => {
+        // eslint-disable-next-line no-console
+        console.error("[ws][error]", msg.payload);
+        window.dispatchEvent(
+          new CustomEvent("ws-error", { detail: msg.payload })
+        );
+      },
+    });
+
+    function handleServerMessage(ev: MessageEvent) {
+      const parsed = parseMessage(ev.data);
+      if (!parsed) {
+        // eslint-disable-next-line no-console
+        console.log("[ws][unparseable]", ev.data);
+        return;
       }
+      router.dispatch(parsed);
     }
     ws.addEventListener("open", () => {
       // eslint-disable-next-line no-console

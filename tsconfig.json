@@ -4,6 +4,7 @@
     "useDefineForClassFields": true,
     "module": "ES2020",
     "moduleResolution": "Node",
+    // "experimentalDecorators": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
