@@ -24,7 +24,7 @@ export class MainScene extends Phaser.Scene {
   private inputState!: ArcadeInput;
   private joystick?: VirtualJoystick;
   private fireButton?: VirtualFireButton;
-  private remoteSprites = new Map<
+  protected remoteSprites = new Map<
     string,
     Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
   >();
@@ -39,6 +39,11 @@ export class MainScene extends Phaser.Scene {
   private pendingSync = false;
   private resizeListenerBound = false;
   private spaceKey?: Phaser.Input.Keyboard.Key;
+  // Off-screen ship indicators (HUD)
+  protected offscreenIndicators = new Map<
+    string,
+    Phaser.GameObjects.Container
+  >();
 
   constructor() {
     super("main");
@@ -51,6 +56,8 @@ export class MainScene extends Phaser.Scene {
   create(data: { shipTexture?: string; shipImageUrl?: string }) {
     // Background grid first so it's behind everything
     this.createBackgroundGrid();
+    // HUD textures
+    this.ensureIndicatorTexture();
     // Allow multiple simultaneous touch points (joystick + fire button, etc.)
     // By default Phaser only tracks a single active pointer. Add a few extras.
     this.input.addPointer(3); // mouse/primary + 3 more = up to 4 concurrent touches
@@ -116,6 +123,8 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.centerOn(mySprite.x, mySprite.y);
       }
     }
+    // Update off-screen ship indicators (HUD)
+    this.updateOffscreenIndicators();
     // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
@@ -295,6 +304,12 @@ export class MainScene extends Phaser.Scene {
         if (!wantedIds.has(id)) {
           sprite.destroy();
           this.remoteSprites.delete(id);
+          // Remove any indicator associated with this ship
+          const ind = this.offscreenIndicators.get(id);
+          if (ind) {
+            ind.destroy(true);
+            this.offscreenIndicators.delete(id);
+          }
         }
       }
 
@@ -460,5 +475,165 @@ export class MainScene extends Phaser.Scene {
       this.fireButton.destroy();
       this.fireButton = undefined;
     }
+    // Destroy HUD indicators
+    for (const [, c] of this.offscreenIndicators) c.destroy(true);
+    this.offscreenIndicators.clear();
   }
 }
+
+// --- HUD: Off-screen indicators ---
+declare global {
+  interface Window {}
+}
+
+export interface IndicatorParts {
+  container: Phaser.GameObjects.Container;
+  arrow: Phaser.GameObjects.Image;
+  label: Phaser.GameObjects.Text;
+}
+
+// Augment MainScene with helper methods
+export interface MainScene {
+  ensureIndicatorTexture(): void;
+  getOrCreateIndicator(id: string): IndicatorParts;
+  updateOffscreenIndicators(): void;
+  formatDistance(meters: number): string;
+}
+
+MainScene.prototype.ensureIndicatorTexture = function ensureIndicatorTexture(
+  this: MainScene
+) {
+  const key = "indicator-triangle";
+  if (this.textures.exists(key)) return;
+  const w = 24;
+  const h = 16;
+  const g = this.make.graphics({ x: 0, y: 0 });
+  g.clear();
+  // Soft white triangle with thin darker outline for contrast
+  g.lineStyle(2, 0x263238, 0.9);
+  g.fillStyle(0xffffff, 0.95);
+  // Triangle pointing to the right in local texture space
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(w, h / 2);
+  g.lineTo(0, h);
+  g.closePath();
+  g.fillPath();
+  g.strokePath();
+  g.generateTexture(key, w + 2, h + 2);
+  g.destroy();
+};
+
+MainScene.prototype.getOrCreateIndicator = function getOrCreateIndicator(
+  this: MainScene,
+  id: string
+): IndicatorParts {
+  let container = this.offscreenIndicators.get(id);
+  if (container) {
+    const children = container.list as any[];
+    const arrow = children.find(
+      (c) => c.getData && c.getData("kind") === "arrow"
+    ) as Phaser.GameObjects.Image;
+    const label = children.find(
+      (c) => c.getData && c.getData("kind") === "label"
+    ) as Phaser.GameObjects.Text;
+    return { container, arrow, label };
+  }
+  const c = this.add.container(0, 0);
+  c.setScrollFactor(0);
+  c.setDepth(1000);
+  const arrow = this.add.image(0, 0, "indicator-triangle");
+  arrow.setOrigin(0.5, 0.5);
+  arrow.setData("kind", "arrow");
+  const label = this.add.text(0, 14, "", {
+    fontFamily: "monospace",
+    fontSize: "12px",
+    color: "#ffffff",
+    stroke: "#000000",
+    strokeThickness: 3,
+  });
+  label.setOrigin(0.5, 0);
+  label.setData("kind", "label");
+  label.setVisible(false);
+  c.add([arrow, label]);
+  this.offscreenIndicators.set(id, c);
+  return { container: c, arrow, label };
+};
+
+MainScene.prototype.updateOffscreenIndicators =
+  function updateOffscreenIndicators(this: MainScene) {
+    const cam = this.cameras.main;
+    const clientId = getClientId();
+    const halfW = cam.width / 2;
+    const halfH = cam.height / 2;
+    const margin = 28; // keep slightly inside the viewport
+    const centerX = halfW;
+    const centerY = halfH;
+
+    // Build a set of ids we saw this frame (off-screen only)
+    const active = new Set<string>();
+
+    for (const [id, sprite] of this.remoteSprites) {
+      if (id === clientId) continue; // don't show indicator for our own ship
+      const dxWorld = sprite.x - cam.midPoint.x;
+      const dyWorld = sprite.y - cam.midPoint.y;
+      const sx = dxWorld * cam.zoom;
+      const sy = dyWorld * cam.zoom;
+      const absX = Math.abs(sx);
+      const absY = Math.abs(sy);
+      const insideX = absX <= halfW - margin;
+      const insideY = absY <= halfH - margin;
+
+      if (insideX && insideY) {
+        // On-screen: hide/destroy indicator if exists
+        const cont = this.offscreenIndicators.get(id);
+        if (cont) cont.setVisible(false);
+        continue;
+      }
+
+      // Off-screen: compute intersection point with screen rectangle
+      const denom = Math.max(absX / (halfW - margin), absY / (halfH - margin));
+      if (denom === 0) {
+        const cont = this.offscreenIndicators.get(id);
+        if (cont) cont.setVisible(false);
+        continue;
+      }
+      const nx = sx / denom; // clamped to edge in screen space
+      const ny = sy / denom;
+      const screenX = centerX + nx;
+      const screenY = centerY + ny;
+
+      const { container, arrow, label } = this.getOrCreateIndicator(id);
+      container.setVisible(true);
+      container.setPosition(Math.round(screenX), Math.round(screenY));
+      // Point arrow towards the ship
+      const angle = Math.atan2(sy, sx);
+      arrow.setRotation(angle);
+      // Distance in world units -> scale arrow size (closer = bigger)
+      const dist = Math.hypot(dxWorld, dyWorld);
+      const minScale = 0.6;
+      const maxScale = 1.8;
+      const near = 300; // px: distance at which indicator is largest
+      const far = 4000; // px: distance at which indicator is smallest
+      const t = Phaser.Math.Clamp((dist - near) / (far - near), 0, 1);
+      const scale = maxScale - t * (maxScale - minScale);
+      arrow.setScale(scale);
+      // Hide text label (we use size as distance cue now)
+      label.setVisible(false);
+
+      active.add(id);
+    }
+
+    // Hide any indicators that weren't active this frame
+    for (const [id, cont] of this.offscreenIndicators) {
+      if (!active.has(id)) cont.setVisible(false);
+    }
+  };
+
+MainScene.prototype.formatDistance = function formatDistance(
+  this: MainScene,
+  meters: number
+): string {
+  if (meters >= 1000) return (meters / 1000).toFixed(1) + " km";
+  return Math.round(meters) + " m";
+};
