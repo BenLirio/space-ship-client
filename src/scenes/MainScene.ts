@@ -362,7 +362,8 @@ export class MainScene extends Phaser.Scene {
         this.refreshHealthBar(
           id,
           sprite,
-          typeof snap.health === "number" ? snap.health : 100
+          typeof snap.health === "number" ? snap.health : 100,
+          typeof snap.kills === "number" ? snap.kills : 0
         );
 
         // No smooth follow attachment needed; camera centers on player each update.
@@ -525,7 +526,8 @@ export interface MainScene {
   refreshHealthBar(
     id: string,
     sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
-    health: number
+  health: number,
+  kills: number
   ): void;
   positionHealthBars(): void;
 }
@@ -673,6 +675,7 @@ export interface HealthBarParts {
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
   fg: Phaser.GameObjects.Rectangle;
+  kills: Phaser.GameObjects.Text;
 }
 
 MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
@@ -688,7 +691,10 @@ MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
     const fg = children.find(
       (c) => c.getData && c.getData("kind") === "hb-fg"
     ) as Phaser.GameObjects.Rectangle;
-    return { container, bg, fg };
+    const kills = children.find(
+      (c) => c.getData && c.getData("kind") === "hb-kills"
+    ) as Phaser.GameObjects.Text;
+    return { container, bg, fg, kills };
   }
   const c = this.add.container(0, 0);
   c.setDepth(200); // above ships
@@ -698,18 +704,31 @@ MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
   const fg = this.add.rectangle(-30, 0, 60, 6, 0x00ff00, 0.95);
   fg.setOrigin(0, 0.5); // left-aligned
   fg.setData("kind", "hb-fg");
-  c.add([bg, fg]);
+  // Kills label (monospace, outlined)
+  const kills = this.add.text(0, -8, "0", {
+    fontFamily: "monospace",
+    fontSize: "12px",
+    color: "#ffffff",
+    stroke: "#000000",
+    strokeThickness: 3,
+  });
+  kills.setOrigin(0.5, 1); // centered above bar
+  kills.setData("kind", "hb-kills");
+  c.add([bg, fg, kills]);
   this.healthBars.set(id, c);
-  return { container: c, bg, fg };
+  return { container: c, bg, fg, kills };
 };
 
 MainScene.prototype.refreshHealthBar = function refreshHealthBar(
   this: MainScene,
   id: string,
   sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
-  health: number
+  health: number,
+  kills: number
 ) {
-  const { container, bg, fg } = this.getOrCreateHealthBar(id);
+  const { container, bg, fg, kills: killsLabel } = this.getOrCreateHealthBar(
+    id
+  );
   // Clamp
   const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
   // Width scales with sprite size (min 48)
@@ -733,6 +752,11 @@ MainScene.prototype.refreshHealthBar = function refreshHealthBar(
   container.setPosition(sprite.x, sprite.y + offsetY);
   container.setVisible(true);
   container.setDepth(sprite.depth + 1);
+  // Update kills label text and position just above the bar
+  const k = Math.max(0, Math.floor(kills ?? 0));
+  killsLabel.setText(String(k));
+  killsLabel.x = 0; // centered
+  killsLabel.y = -8; // relative to container center
 };
 
 MainScene.prototype.positionHealthBars = function positionHealthBars(
