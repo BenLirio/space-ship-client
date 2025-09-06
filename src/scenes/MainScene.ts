@@ -37,7 +37,6 @@ export class MainScene extends Phaser.Scene {
   private indicators!: OffscreenIndicators;
   private healthBars!: HealthBarManager;
   private projectiles!: ProjectileRenderer;
-  // (scoreboard removed)
 
   constructor() {
     super("main");
@@ -72,7 +71,6 @@ export class MainScene extends Phaser.Scene {
       this.maybeToggleJoystick();
       this.positionJoystick();
       this.positionFireButton();
-      // (scoreboard removed)
     });
     window.addEventListener("orientationchange", this.handleOrientationChange);
     this.resizeListenerBound = true;
@@ -81,7 +79,6 @@ export class MainScene extends Phaser.Scene {
     this.maybeToggleJoystick();
     this.positionJoystick();
     this.positionFireButton();
-    // (scoreboard removed)
 
     // Subscribe to remote ship updates
 
@@ -344,6 +341,5 @@ export class MainScene extends Phaser.Scene {
     this.indicators?.clear();
     this.healthBars?.clear();
     this.projectiles?.destroy();
-    // (scoreboard removed)
   }
 }

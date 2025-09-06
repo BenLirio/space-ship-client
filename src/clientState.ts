@@ -76,5 +76,3 @@ function notify() {
     }
   });
 }
-
-// (scoreboard removed)

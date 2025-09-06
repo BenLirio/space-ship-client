@@ -42,8 +42,6 @@ const GameState = z.object({
   }),
 });
 
-// (scoreboard message removed)
-
 const ErrorMsg = z.object({
   type: z.literal("error"),
   payload: z.unknown(),

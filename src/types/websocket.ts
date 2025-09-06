@@ -3,5 +3,3 @@ export interface ServerMessage<T = unknown> {
   type: string;
   payload: T;
 }
-
-// (scoreboard removed)
