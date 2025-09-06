@@ -1,9 +1,5 @@
 import Phaser from "phaser";
-import {
-  preloadShip,
-  createShipSprite,
-  SHIP_TARGET_MAX_SIZE,
-} from "../ship/ship";
+import { preloadShip, createShipSprite } from "../ship/ship";
 import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
@@ -16,9 +12,15 @@ import {
   setInputSnapshot,
   getProjectiles,
 } from "../clientState";
-import { RemoteShipSnapshot, ProjectileSnapshot } from "../types/state";
+import { RemoteShipSnapshot } from "../types/state";
 import { getScoreboard, subscribe as subscribeState } from "../clientState";
-import type { ScoreboardItem } from "../types/websocket";
+
+// Extracted helpers
+import { BackgroundGrid } from "./main/BackgroundGrid";
+import { OffscreenIndicators } from "./main/OffscreenIndicators";
+import { HealthBarManager } from "./main/HealthBarManager";
+import { ScoreboardOverlay } from "./main/ScoreboardOverlay";
+import { ProjectileRenderer } from "./main/ProjectileRenderer";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -30,26 +32,17 @@ export class MainScene extends Phaser.Scene {
     string,
     Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
   >();
-  // Projectiles now rendered as 1px red X (Image objects) for precise origin debugging
-  private projectileSprites = new Map<string, Phaser.GameObjects.Image>();
-  // For dead-reckoning between snapshots
-  private lastProjectileSync = 0;
-  private static readonly MAX_PROJECTILES_RENDERED = 500; // safety cap
   private unsubscribe?: () => void;
-  private grid?: Phaser.GameObjects.TileSprite;
+  private grid?: BackgroundGrid;
   private syncing = false;
   private pendingSync = false;
   private resizeListenerBound = false;
   private spaceKey?: Phaser.Input.Keyboard.Key;
-  // Per-ship health bars (HUD in world space)
-  protected healthBars = new Map<string, Phaser.GameObjects.Container>();
-  // Off-screen ship indicators (HUD)
-  protected offscreenIndicators = new Map<
-    string,
-    Phaser.GameObjects.Container
-  >();
-  // DOM HUD: scoreboard
-  scoreboardRoot?: HTMLDivElement;
+  // HUD managers
+  private indicators!: OffscreenIndicators;
+  private healthBars!: HealthBarManager;
+  private scoreboard!: ScoreboardOverlay;
+  private projectiles!: ProjectileRenderer;
   private unsubscribeScoreboard?: () => void;
 
   constructor() {
@@ -62,9 +55,11 @@ export class MainScene extends Phaser.Scene {
 
   create(data: { shipTexture?: string; shipImageUrl?: string }) {
     // Background grid first so it's behind everything
-    this.createBackgroundGrid();
-    // HUD textures
-    this.ensureIndicatorTexture();
+    this.grid = new BackgroundGrid(this);
+    // HUD managers
+    this.indicators = new OffscreenIndicators(this);
+    this.healthBars = new HealthBarManager(this);
+    this.projectiles = new ProjectileRenderer(this);
     // Allow multiple simultaneous touch points (joystick + fire button, etc.)
     // By default Phaser only tracks a single active pointer. Add a few extras.
     this.input.addPointer(3); // mouse/primary + 3 more = up to 4 concurrent touches
@@ -96,7 +91,7 @@ export class MainScene extends Phaser.Scene {
       this.maybeToggleJoystick();
       this.positionJoystick();
       this.positionFireButton();
-      this.layoutScoreboard();
+      this.scoreboard.layout();
     });
     window.addEventListener("orientationchange", this.handleOrientationChange);
     this.resizeListenerBound = true;
@@ -105,10 +100,13 @@ export class MainScene extends Phaser.Scene {
     this.maybeToggleJoystick();
     this.positionJoystick();
     this.positionFireButton();
-    this.ensureScoreboardDom();
-    this.layoutScoreboard();
-    this.unsubscribeScoreboard = subscribeState(() => this.renderScoreboard());
-    this.renderScoreboard();
+    this.scoreboard = new ScoreboardOverlay();
+    this.scoreboard.ensureDom();
+    this.scoreboard.layout();
+    this.unsubscribeScoreboard = subscribeState(() =>
+      this.scoreboard.render(getScoreboard())
+    );
+    this.scoreboard.render(getScoreboard());
 
     // No external loader panel in new flow.
 
@@ -126,7 +124,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    this.updateGridScroll();
+    this.grid?.updateScroll();
     // Hard follow: center camera exactly on player's ship each frame (no smoothing/interp)
     const id = getClientId();
     if (id) {
@@ -136,9 +134,9 @@ export class MainScene extends Phaser.Scene {
       }
     }
     // Update off-screen ship indicators (HUD)
-    this.updateOffscreenIndicators();
+    this.indicators.update(this.remoteSprites, getRemoteShips(), id);
     // Keep health bars aligned to ship sprites every frame (cheap)
-    this.positionHealthBars();
+    this.healthBars.positionAll(this.remoteSprites);
     // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
@@ -174,7 +172,7 @@ export class MainScene extends Phaser.Scene {
     setInputSnapshot({ keysDown, joystick: { x: jx, y: jy } });
 
     // Dead-reckon projectiles (client-side extrapolation until next snapshot)
-    this.extrapolateProjectiles(delta);
+    this.projectiles.extrapolate(delta, getProjectiles());
   }
 
   // Wrapping removed: movement is unbounded. (Keep placeholder methods if future constraints needed.)
@@ -238,47 +236,8 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private createBackgroundGrid() {
-    const cell = SHIP_TARGET_MAX_SIZE * 4; // cell size ~4x ship length
-    const patternKey = "grid-pattern";
-    if (!this.textures.exists(patternKey)) {
-      // Create an off-screen graphics object to draw a single cell pattern
-      const g = this.make.graphics({ x: 0, y: 0 });
-      // Softer "pre-blurred" grid: draw two adjacent 1px bands with descending alpha
-      // to reduce high-frequency shimmer when camera scrolls sub-pixel.
-      const lineColor = 0x758089; // slightly lighter
-      g.clear();
-      // Horizontal (top) band: y=0 stronger, y=1 lighter
-      g.fillStyle(lineColor, 0.55);
-      g.fillRect(0, 0, cell, 1);
-      g.fillStyle(lineColor, 0.25);
-      g.fillRect(0, 1, cell, 1);
-      // Vertical (left) band: x=0 stronger, x=1 lighter
-      g.fillStyle(lineColor, 0.55);
-      g.fillRect(0, 0, 1, cell);
-      g.fillStyle(lineColor, 0.25);
-      g.fillRect(1, 0, 1, cell);
-      g.generateTexture(patternKey, cell, cell);
-      g.destroy();
-    }
-    this.grid = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, patternKey)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(-100); // behind everything
-  }
-
   private resizeGrid() {
-    if (!this.grid) return;
-    this.grid.setSize(this.scale.width, this.scale.height);
-  }
-
-  private updateGridScroll() {
-    if (!this.grid) return;
-    const cam = this.cameras.main;
-    // Move tile texture relative to camera scroll to anchor grid to world
-    // Snap to integer pixels to reduce sub-pixel aliasing shimmer
-    this.grid.setTilePosition(Math.round(cam.scrollX), Math.round(cam.scrollY));
+    this.grid?.resize();
   }
 
   private async ensureTextureFor(url?: string) {
@@ -319,17 +278,9 @@ export class MainScene extends Phaser.Scene {
           sprite.destroy();
           this.remoteSprites.delete(id);
           // Remove any indicator associated with this ship
-          const ind = this.offscreenIndicators.get(id);
-          if (ind) {
-            ind.destroy(true);
-            this.offscreenIndicators.delete(id);
-          }
-          // Remove health bar
-          const hb = this.healthBars.get(id);
-          if (hb) {
-            hb.destroy(true);
-            this.healthBars.delete(id);
-          }
+          // Remove HUD for this ship
+          this.indicators.destroyFor(id);
+          this.healthBars.destroyFor(id);
         }
       }
 
@@ -356,7 +307,7 @@ export class MainScene extends Phaser.Scene {
           sprite.setData("shipId", id);
           this.remoteSprites.set(id, sprite);
           // Ensure health bar exists for this ship
-          this.getOrCreateHealthBar(id);
+          this.healthBars.getOrCreate(id);
         } else {
           // Update texture if changed
           if (sprite.texture.key !== desiredTexKey) {
@@ -369,7 +320,7 @@ export class MainScene extends Phaser.Scene {
         sprite.rotation = snap.physics.rotation;
 
         // Update health bar visuals
-        this.refreshHealthBar(
+        this.healthBars.refresh(
           id,
           sprite,
           typeof snap.health === "number" ? snap.health : 100,
@@ -404,89 +355,12 @@ export class MainScene extends Phaser.Scene {
   }
 
   private syncProjectiles() {
-    const snapshots = getProjectiles();
-    const allIds = Object.keys(snapshots);
-    // Ensure the projectile texture exists: a small white ball (~5px radius)
-    const projectileTexKey = "projectile-ball";
-    if (!this.textures.exists(projectileTexKey)) {
-      const g = this.make.graphics({ x: 0, y: 0 });
-      g.clear();
-      const radius = 5; // px
-      const diameter = radius * 2;
-      // Slightly larger transparent canvas to avoid clipping antialias edge
-      g.fillStyle(0xffffff, 1);
-      g.fillCircle(radius, radius, radius);
-      g.generateTexture(projectileTexKey, diameter, diameter);
-      g.destroy();
-    }
-    // Performance cap: choose most recent (by createdAt) if over cap
-    const ids = new Set(
-      allIds
-        .map((id) => ({
-          id,
-          createdAt: (snapshots as any)[id]?.createdAt || 0,
-        }))
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .slice(0, MainScene.MAX_PROJECTILES_RENDERED)
-        .map((o) => o.id)
-    );
-    // Remove stale
-    for (const [id, arc] of this.projectileSprites) {
-      if (!ids.has(id)) {
-        arc.destroy();
-        this.projectileSprites.delete(id);
-      }
-    }
-    // Add/update
-    for (const id of ids) {
-      const p: ProjectileSnapshot | undefined = (snapshots as any)[id];
-      if (!p) continue;
-      let img = this.projectileSprites.get(id);
-      if (!img) {
-        img = this.add.image(p.position.x, p.position.y, projectileTexKey);
-        img.setOrigin(0.5, 0.5);
-        img.setData("projectileId", id);
-        img.setDepth(50); // above ships
-        this.projectileSprites.set(id, img);
-      }
-      img.x = p.position.x;
-      img.y = p.position.y;
-    }
-    this.lastProjectileSync = performance.now();
+    this.projectiles.sync(getProjectiles());
   }
 
   private extrapolateProjectiles(delta: number) {
-    if (!this.projectileSprites.size) return;
-    const snapshots = getProjectiles();
-    const dt = delta / 1000;
-    const now = performance.now();
-    for (const [id, arc] of this.projectileSprites) {
-      const snap = snapshots[id];
-      if (!snap) continue; // will be cleaned up on next sync
-      // Simple dead-reckoning: pos += velocity * dt
-      arc.x += snap.velocity.x * dt;
-      arc.y += snap.velocity.y * dt;
-      // Optional lifetime fade (3s window)
-      const age = Date.now() - snap.createdAt;
-      const life = 3000;
-      if (age > life) {
-        // If server still keeps it longer, just clamp alpha never negative
-        arc.setAlpha(0.05);
-      } else {
-        const alpha = 1 - age / life;
-        arc.setAlpha(Phaser.Math.Clamp(alpha, 0.1, 1));
-      }
-      // Off-screen skip? We'll rely on Phaser culling implicitly; if desired we could hide.
-      const cam = this.cameras.main;
-      const view = cam.worldView; // Rectangle
-      const margin = 40; // small margin so they pop in gracefully
-      const inView =
-        arc.x >= view.x - margin &&
-        arc.x <= view.right + margin &&
-        arc.y >= view.y - margin &&
-        arc.y <= view.bottom + margin;
-      arc.setVisible(inView);
-    }
+    // kept for backward compatibility if called somewhere else
+    this.projectiles.extrapolate(delta, getProjectiles());
   }
 
   shutdown() {
@@ -506,407 +380,15 @@ export class MainScene extends Phaser.Scene {
       this.fireButton.destroy();
       this.fireButton = undefined;
     }
-    // Destroy HUD indicators
-    for (const [, c] of this.offscreenIndicators) c.destroy(true);
-    this.offscreenIndicators.clear();
-    // Destroy health bars
-    for (const [, c] of this.healthBars) c.destroy(true);
-    this.healthBars.clear();
-    // Remove scoreboard DOM
+    this.indicators?.clear();
+    this.healthBars?.clear();
+    this.projectiles?.destroy();
     if (this.unsubscribeScoreboard) this.unsubscribeScoreboard();
-    if (this.scoreboardRoot) {
-      this.scoreboardRoot.remove();
-      this.scoreboardRoot = undefined;
-    }
+    this.scoreboard?.destroy();
   }
 }
-
-// --- HUD: Off-screen indicators ---
-declare global {
-  interface Window {}
-}
-
-export interface IndicatorParts {
-  container: Phaser.GameObjects.Container;
-  arrow: Phaser.GameObjects.Image;
-  label: Phaser.GameObjects.Text;
-}
-
-// Augment MainScene with helper methods
-export interface MainScene {
-  ensureIndicatorTexture(): void;
-  getOrCreateIndicator(id: string): IndicatorParts;
-  updateOffscreenIndicators(): void;
-  formatDistance(meters: number): string;
-  // Health bar helpers
-  getOrCreateHealthBar(id: string): HealthBarParts;
-  refreshHealthBar(
-    id: string,
-    sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
-    health: number,
-    kills: number,
-    name?: string
-  ): void;
-  positionHealthBars(): void;
-  // Scoreboard helpers
-  ensureScoreboardDom(): void;
-  layoutScoreboard(): void;
-  renderScoreboard(items?: ScoreboardItem[]): void;
-}
-
-MainScene.prototype.ensureIndicatorTexture = function ensureIndicatorTexture(
-  this: MainScene
-) {
-  const key = "indicator-triangle";
-  if (this.textures.exists(key)) return;
-  const w = 24;
-  const h = 16;
-  const g = this.make.graphics({ x: 0, y: 0 });
-  g.clear();
-  // Soft white triangle with thin darker outline for contrast
-  g.lineStyle(2, 0x263238, 0.9);
-  g.fillStyle(0xffffff, 0.95);
-  // Triangle pointing to the right in local texture space
-  g.beginPath();
-  g.moveTo(0, 0);
-  g.lineTo(w, h / 2);
-  g.lineTo(0, h);
-  g.closePath();
-  g.fillPath();
-  g.strokePath();
-  g.generateTexture(key, w + 2, h + 2);
-  g.destroy();
-};
-
-MainScene.prototype.getOrCreateIndicator = function getOrCreateIndicator(
-  this: MainScene,
-  id: string
-): IndicatorParts {
-  let container = this.offscreenIndicators.get(id);
-  if (container) {
-    const children = container.list as any[];
-    const arrow = children.find(
-      (c) => c.getData && c.getData("kind") === "arrow"
-    ) as Phaser.GameObjects.Image;
-    const label = children.find(
-      (c) => c.getData && c.getData("kind") === "label"
-    ) as Phaser.GameObjects.Text;
-    return { container, arrow, label };
-  }
-  const c = this.add.container(0, 0);
-  c.setScrollFactor(0);
-  c.setDepth(1000);
-  const arrow = this.add.image(0, 0, "indicator-triangle");
-  arrow.setOrigin(0.5, 0.5);
-  arrow.setData("kind", "arrow");
-  const label = this.add.text(0, 14, "", {
-    fontFamily: "monospace",
-    fontSize: "12px",
-    color: "#ffffff",
-    stroke: "#000000",
-    strokeThickness: 3,
-  });
-  label.setOrigin(0.5, 0);
-  label.setData("kind", "label");
-  label.setVisible(false);
-  c.add([arrow, label]);
-  this.offscreenIndicators.set(id, c);
-  return { container: c, arrow, label };
-};
-
-MainScene.prototype.updateOffscreenIndicators =
-  function updateOffscreenIndicators(this: MainScene) {
-    const cam = this.cameras.main;
-    const clientId = getClientId();
-    const snapshots = getRemoteShips();
-    const halfW = cam.width / 2;
-    const halfH = cam.height / 2;
-    const margin = 28; // keep slightly inside the viewport
-    const centerX = halfW;
-    const centerY = halfH;
-
-    // Build a set of ids we saw this frame (off-screen only)
-    const active = new Set<string>();
-
-    for (const [id, sprite] of this.remoteSprites) {
-      if (id === clientId) continue; // don't show indicator for our own ship
-      const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
-      // Hide indicator if the ship is explicitly dead (health <= 0)
-      if (snap && typeof snap.health === "number" && snap.health <= 0) {
-        const cont = this.offscreenIndicators.get(id);
-        if (cont) cont.setVisible(false);
-        continue;
-      }
-      const dxWorld = sprite.x - cam.midPoint.x;
-      const dyWorld = sprite.y - cam.midPoint.y;
-      const sx = dxWorld * cam.zoom;
-      const sy = dyWorld * cam.zoom;
-      const absX = Math.abs(sx);
-      const absY = Math.abs(sy);
-      const insideX = absX <= halfW - margin;
-      const insideY = absY <= halfH - margin;
-
-      if (insideX && insideY) {
-        // On-screen: hide/destroy indicator if exists
-        const cont = this.offscreenIndicators.get(id);
-        if (cont) cont.setVisible(false);
-        continue;
-      }
-
-      // Off-screen: compute intersection point with screen rectangle
-      const denom = Math.max(absX / (halfW - margin), absY / (halfH - margin));
-      if (denom === 0) {
-        const cont = this.offscreenIndicators.get(id);
-        if (cont) cont.setVisible(false);
-        continue;
-      }
-      const nx = sx / denom; // clamped to edge in screen space
-      const ny = sy / denom;
-      const screenX = centerX + nx;
-      const screenY = centerY + ny;
-
-      const { container, arrow, label } = this.getOrCreateIndicator(id);
-      container.setVisible(true);
-      container.setPosition(Math.round(screenX), Math.round(screenY));
-      // Point arrow towards the ship
-      const angle = Math.atan2(sy, sx);
-      arrow.setRotation(angle);
-      // Distance in world units -> scale arrow size (closer = bigger)
-      const dist = Math.hypot(dxWorld, dyWorld);
-      const minScale = 0.6;
-      const maxScale = 1.8;
-      const near = 300; // px: distance at which indicator is largest
-      const far = 4000; // px: distance at which indicator is smallest
-      const t = Phaser.Math.Clamp((dist - near) / (far - near), 0, 1);
-      const scale = maxScale - t * (maxScale - minScale);
-      arrow.setScale(scale);
-      // Show name under arrow if available
-      const nm = snap && typeof snap.name === "string" ? snap.name.trim() : "";
-      if (nm) {
-        const maxChars = 18;
-        const txt = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
-        label.setText(txt);
-        label.setVisible(true);
-      } else {
-        label.setVisible(false);
-      }
-
-      active.add(id);
-    }
-
-    // Hide any indicators that weren't active this frame
-    for (const [id, cont] of this.offscreenIndicators) {
-      if (!active.has(id)) cont.setVisible(false);
-    }
-  };
-
-MainScene.prototype.formatDistance = function formatDistance(
-  this: MainScene,
-  meters: number
-): string {
+// Keep formatDistance helper if needed elsewhere
+export function formatDistance(meters: number): string {
   if (meters >= 1000) return (meters / 1000).toFixed(1) + " km";
   return Math.round(meters) + " m";
-};
-
-// --- HUD: Health Bars ---
-export interface HealthBarParts {
-  container: Phaser.GameObjects.Container;
-  bg: Phaser.GameObjects.Rectangle;
-  fg: Phaser.GameObjects.Rectangle;
-  kills: Phaser.GameObjects.Text;
-  name: Phaser.GameObjects.Text;
 }
-
-MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
-  this: MainScene,
-  id: string
-): HealthBarParts {
-  let container = this.healthBars.get(id);
-  if (container) {
-    const children = container.list as any[];
-    const bg = children.find(
-      (c) => c.getData && c.getData("kind") === "hb-bg"
-    ) as Phaser.GameObjects.Rectangle;
-    const fg = children.find(
-      (c) => c.getData && c.getData("kind") === "hb-fg"
-    ) as Phaser.GameObjects.Rectangle;
-    const kills = children.find(
-      (c) => c.getData && c.getData("kind") === "hb-kills"
-    ) as Phaser.GameObjects.Text;
-    const name = children.find(
-      (c) => c.getData && c.getData("kind") === "hb-name"
-    ) as Phaser.GameObjects.Text;
-    return { container, bg, fg, kills, name };
-  }
-  const c = this.add.container(0, 0);
-  c.setDepth(200); // above ships
-  const bg = this.add.rectangle(0, 0, 60, 6, 0x111111, 0.75);
-  bg.setOrigin(0.5, 0.5);
-  bg.setData("kind", "hb-bg");
-  const fg = this.add.rectangle(-30, 0, 60, 6, 0x00ff00, 0.95);
-  fg.setOrigin(0, 0.5); // left-aligned
-  fg.setData("kind", "hb-fg");
-  // Kills label (monospace, outlined)
-  const kills = this.add.text(0, -8, "0", {
-    fontFamily: "monospace",
-    fontSize: "12px",
-    color: "#ffffff",
-    stroke: "#000000",
-    strokeThickness: 3,
-  });
-  kills.setOrigin(0.5, 1); // centered above bar
-  kills.setData("kind", "hb-kills");
-  // Name label sits above kills
-  const name = this.add.text(0, -22, "", {
-    fontFamily: "monospace",
-    fontSize: "12px",
-    color: "#ffffff",
-    stroke: "#000000",
-    strokeThickness: 3,
-  });
-  name.setOrigin(0.5, 1);
-  name.setData("kind", "hb-name");
-  c.add([bg, fg, kills, name]);
-  this.healthBars.set(id, c);
-  return { container: c, bg, fg, kills, name };
-};
-
-MainScene.prototype.refreshHealthBar = function refreshHealthBar(
-  this: MainScene,
-  id: string,
-  sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
-  health: number,
-  kills: number,
-  name?: string
-) {
-  const {
-    container,
-    bg,
-    fg,
-    kills: killsLabel,
-    name: nameLabel,
-  } = this.getOrCreateHealthBar(id);
-  // Clamp
-  const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
-  // Width scales with sprite size (min 48)
-  const maxW = Math.max(48, Math.round(sprite.displayWidth || 60));
-  const height = 6;
-  bg.setSize(maxW, height);
-  // Foreground width proportional to health
-  const fgW = Math.max(0, Math.round((maxW * h) / 100));
-  fg.setSize(fgW, height);
-  // Ensure left align starting at -maxW/2
-  fg.x = -maxW / 2;
-  bg.x = 0;
-  // Color gradient red->green
-  const t = h / 100;
-  const r = Math.round(255 * (1 - t));
-  const g = Math.round(255 * t);
-  const color = (r << 16) | (g << 8) | 0;
-  fg.setFillStyle(color, 0.95);
-  // Position above the sprite
-  const offsetY = -(sprite.displayHeight || 80) * 0.65;
-  container.setPosition(sprite.x, sprite.y + offsetY);
-  container.setVisible(true);
-  container.setDepth(sprite.depth + 1);
-  // Update kills label text and position just above the bar
-  const k = Math.max(0, Math.floor(kills ?? 0));
-  killsLabel.setText(String(k));
-  killsLabel.x = 0; // centered
-  killsLabel.y = -8; // relative to container center
-  // Update name label
-  if (nameLabel) {
-    const nm = (name ?? "").trim();
-    const maxChars = 18;
-    const text = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
-    nameLabel.setText(text);
-    nameLabel.x = 0;
-    nameLabel.y = -22;
-    nameLabel.setVisible(!!nm);
-  }
-};
-
-MainScene.prototype.positionHealthBars = function positionHealthBars(
-  this: MainScene
-) {
-  for (const [id, c] of this.healthBars) {
-    const sprite = this.remoteSprites.get(id);
-    if (!sprite || !sprite.active) {
-      c.setVisible(false);
-      continue;
-    }
-    const offsetY = -(sprite.displayHeight || 80) * 0.65;
-    c.setPosition(sprite.x, sprite.y + offsetY);
-    c.setDepth(sprite.depth + 1);
-    c.setVisible(true);
-  }
-};
-
-// --- HUD: Scoreboard (DOM overlay) ---
-MainScene.prototype.ensureScoreboardDom = function ensureScoreboardDom(
-  this: MainScene
-) {
-  if (this.scoreboardRoot) return;
-  const root = document.createElement("div");
-  root.id = "scoreboard";
-  root.setAttribute("aria-label", "Scoreboard");
-  root.innerHTML = `<div class="sb-inner"></div>`;
-  // Styles injected once
-  if (!document.getElementById("scoreboard-styles")) {
-    const style = document.createElement("style");
-    style.id = "scoreboard-styles";
-    style.textContent = `
-    #scoreboard { position: fixed; top: 12px; right: 12px; z-index: 1200; pointer-events: none; }
-    #scoreboard .sb-inner { max-width: min(36vw, 420px); background: rgba(8,12,20,.55); border:1px solid rgba(120,160,200,.18); backdrop-filter: blur(12px) saturate(140%); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px -12px rgba(0,0,0,.6); }
-    #scoreboard .row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; }
-    #scoreboard .row:nth-child(1) { background: linear-gradient(90deg, rgba(255,215,0,.18), rgba(255,215,0,0)); }
-    #scoreboard .row:nth-child(2) { background: linear-gradient(90deg, rgba(192,192,192,.14), rgba(192,192,192,0)); }
-    #scoreboard .row:nth-child(3) { background: linear-gradient(90deg, rgba(205,127,50,.12), rgba(205,127,50,0)); }
-    #scoreboard img { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; background:#0b131d; }
-    #scoreboard .name { flex: 1 1 auto; min-width: 60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family: monospace; font-size: 12px; color:#def; }
-    #scoreboard .score { font-family: monospace; font-weight: 700; color:#fff; }
-    @media (max-width: 900px) { #scoreboard { top: 8px; right: 8px; } #scoreboard .sb-inner { max-width: 60vw; padding:6px; } }
-    `;
-    document.head.appendChild(style);
-  }
-  document.body.appendChild(root);
-  this.scoreboardRoot = root;
-};
-
-MainScene.prototype.layoutScoreboard = function layoutScoreboard(
-  this: MainScene
-) {
-  // Currently anchored top-right; could adapt size based on viewport if needed
-  // No-op beyond CSS for now.
-};
-
-MainScene.prototype.renderScoreboard = function renderScoreboard(
-  this: MainScene,
-  items?: ScoreboardItem[]
-) {
-  if (!this.scoreboardRoot) return;
-  const list = items ?? getScoreboard();
-  const inner = this.scoreboardRoot.querySelector(".sb-inner");
-  if (!inner) return;
-  // Sort: score desc, then createdAt asc
-  const sorted = [...list].sort((a, b) => {
-    const s = (b.score ?? 0) - (a.score ?? 0);
-    if (s !== 0) return s;
-    const ad = a.createdAt ? Date.parse(a.createdAt) : 0;
-    const bd = b.createdAt ? Date.parse(b.createdAt) : 0;
-    return ad - bd;
-  });
-  // Limit visible rows for space (e.g., top 8)
-  const MAX_ROWS = 8;
-  const rows = sorted.slice(0, MAX_ROWS).map((i) => {
-    const safeName = (i.name || i.id || "").toString();
-    const title = `${safeName} — ${i.score}`;
-    const shipUrl = i.shipImageUrl || "";
-    return `<div class="row" title="${title}">
-      <img src="${shipUrl}" alt="ship" />
-      <span class="name">${safeName}</span>
-      <span class="score">${i.score}</span>
-    </div>`;
-  });
-  inner.innerHTML = rows.join("");
-};
