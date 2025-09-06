@@ -39,6 +39,8 @@ export class MainScene extends Phaser.Scene {
   private pendingSync = false;
   private resizeListenerBound = false;
   private spaceKey?: Phaser.Input.Keyboard.Key;
+  // Per-ship health bars (HUD in world space)
+  protected healthBars = new Map<string, Phaser.GameObjects.Container>();
   // Off-screen ship indicators (HUD)
   protected offscreenIndicators = new Map<
     string,
@@ -125,6 +127,8 @@ export class MainScene extends Phaser.Scene {
     }
     // Update off-screen ship indicators (HUD)
     this.updateOffscreenIndicators();
+    // Keep health bars aligned to ship sprites every frame (cheap)
+    this.positionHealthBars();
     // Build and publish InputSnapshot every frame (client only sends inputs now)
     const keysDown = new Set<string>();
     const captureKey = (k?: Phaser.Input.Keyboard.Key, name?: string) => {
@@ -310,6 +314,12 @@ export class MainScene extends Phaser.Scene {
             ind.destroy(true);
             this.offscreenIndicators.delete(id);
           }
+          // Remove health bar
+          const hb = this.healthBars.get(id);
+          if (hb) {
+            hb.destroy(true);
+            this.healthBars.delete(id);
+          }
         }
       }
 
@@ -335,6 +345,8 @@ export class MainScene extends Phaser.Scene {
           );
           sprite.setData("shipId", id);
           this.remoteSprites.set(id, sprite);
+          // Ensure health bar exists for this ship
+          this.getOrCreateHealthBar(id);
         } else {
           // Update texture if changed
           if (sprite.texture.key !== desiredTexKey) {
@@ -345,6 +357,13 @@ export class MainScene extends Phaser.Scene {
         sprite.x = snap.physics.position.x;
         sprite.y = snap.physics.position.y;
         sprite.rotation = snap.physics.rotation;
+
+        // Update health bar visuals
+        this.refreshHealthBar(
+          id,
+          sprite,
+          typeof snap.health === "number" ? snap.health : 100
+        );
 
         // No smooth follow attachment needed; camera centers on player each update.
       }
@@ -478,6 +497,9 @@ export class MainScene extends Phaser.Scene {
     // Destroy HUD indicators
     for (const [, c] of this.offscreenIndicators) c.destroy(true);
     this.offscreenIndicators.clear();
+    // Destroy health bars
+    for (const [, c] of this.healthBars) c.destroy(true);
+    this.healthBars.clear();
   }
 }
 
@@ -498,6 +520,14 @@ export interface MainScene {
   getOrCreateIndicator(id: string): IndicatorParts;
   updateOffscreenIndicators(): void;
   formatDistance(meters: number): string;
+  // Health bar helpers
+  getOrCreateHealthBar(id: string): HealthBarParts;
+  refreshHealthBar(
+    id: string,
+    sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
+    health: number
+  ): void;
+  positionHealthBars(): void;
 }
 
 MainScene.prototype.ensureIndicatorTexture = function ensureIndicatorTexture(
@@ -636,4 +666,87 @@ MainScene.prototype.formatDistance = function formatDistance(
 ): string {
   if (meters >= 1000) return (meters / 1000).toFixed(1) + " km";
   return Math.round(meters) + " m";
+};
+
+// --- HUD: Health Bars ---
+export interface HealthBarParts {
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  fg: Phaser.GameObjects.Rectangle;
+}
+
+MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
+  this: MainScene,
+  id: string
+): HealthBarParts {
+  let container = this.healthBars.get(id);
+  if (container) {
+    const children = container.list as any[];
+    const bg = children.find(
+      (c) => c.getData && c.getData("kind") === "hb-bg"
+    ) as Phaser.GameObjects.Rectangle;
+    const fg = children.find(
+      (c) => c.getData && c.getData("kind") === "hb-fg"
+    ) as Phaser.GameObjects.Rectangle;
+    return { container, bg, fg };
+  }
+  const c = this.add.container(0, 0);
+  c.setDepth(200); // above ships
+  const bg = this.add.rectangle(0, 0, 60, 6, 0x111111, 0.75);
+  bg.setOrigin(0.5, 0.5);
+  bg.setData("kind", "hb-bg");
+  const fg = this.add.rectangle(-30, 0, 60, 6, 0x00ff00, 0.95);
+  fg.setOrigin(0, 0.5); // left-aligned
+  fg.setData("kind", "hb-fg");
+  c.add([bg, fg]);
+  this.healthBars.set(id, c);
+  return { container: c, bg, fg };
+};
+
+MainScene.prototype.refreshHealthBar = function refreshHealthBar(
+  this: MainScene,
+  id: string,
+  sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
+  health: number
+) {
+  const { container, bg, fg } = this.getOrCreateHealthBar(id);
+  // Clamp
+  const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
+  // Width scales with sprite size (min 48)
+  const maxW = Math.max(48, Math.round(sprite.displayWidth || 60));
+  const height = 6;
+  bg.setSize(maxW, height);
+  // Foreground width proportional to health
+  const fgW = Math.max(0, Math.round((maxW * h) / 100));
+  fg.setSize(fgW, height);
+  // Ensure left align starting at -maxW/2
+  fg.x = -maxW / 2;
+  bg.x = 0;
+  // Color gradient red->green
+  const t = h / 100;
+  const r = Math.round(255 * (1 - t));
+  const g = Math.round(255 * t);
+  const color = (r << 16) | (g << 8) | 0;
+  fg.setFillStyle(color, 0.95);
+  // Position above the sprite
+  const offsetY = -(sprite.displayHeight || 80) * 0.65;
+  container.setPosition(sprite.x, sprite.y + offsetY);
+  container.setVisible(true);
+  container.setDepth(sprite.depth + 1);
+};
+
+MainScene.prototype.positionHealthBars = function positionHealthBars(
+  this: MainScene
+) {
+  for (const [id, c] of this.healthBars) {
+    const sprite = this.remoteSprites.get(id);
+    if (!sprite || !sprite.active) {
+      c.setVisible(false);
+      continue;
+    }
+    const offsetY = -(sprite.displayHeight || 80) * 0.65;
+    c.setPosition(sprite.x, sprite.y + offsetY);
+    c.setDepth(sprite.depth + 1);
+    c.setVisible(true);
+  }
 };

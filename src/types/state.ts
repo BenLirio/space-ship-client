@@ -3,6 +3,8 @@
 export interface RemoteShipSnapshot {
   physics: { position: { x: number; y: number }; rotation: number };
   appearance?: { shipImageUrl?: string };
+  // New: health percentage [0..100]
+  health?: number;
 }
 
 export type Listener = () => void;
