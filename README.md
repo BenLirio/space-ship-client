@@ -102,6 +102,21 @@ Open the printed URL (defaults to `http://localhost:4173`).
 
 Deployment status and URL are visible in the repo's "Environments" section after the first successful run.
 
+## Analytics (Google tag)
+
+Google Analytics 4 is wired via a plain gtag snippet in `index.html` (added right after `<head>`):
+
+- Measurement ID currently used: `G-DZ37BB6T3L`.
+- To change it, edit `index.html` and replace the two occurrences in the script tag URL and `gtag('config', ...)` call.
+
+### How to verify
+
+1. Build and preview locally, or open your deployed site.
+2. Open DevTools → Network, filter for `collect` or `gtag/js` and confirm requests load without errors.
+3. In Google Analytics → Admin → Data display → DebugView (or Realtime), confirm page_view events arrive.
+
+If you need to gate analytics by environment (e.g., only on production), we can switch to a Vite env variable `VITE_GA_MEASUREMENT_ID` and conditionally inject the tag.
+
 ## Next Ideas
 
 - Add inertia particle trail

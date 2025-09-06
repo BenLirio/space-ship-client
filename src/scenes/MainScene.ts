@@ -526,8 +526,8 @@ export interface MainScene {
   refreshHealthBar(
     id: string,
     sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
-  health: number,
-  kills: number
+    health: number,
+    kills: number
   ): void;
   positionHealthBars(): void;
 }
@@ -726,9 +726,12 @@ MainScene.prototype.refreshHealthBar = function refreshHealthBar(
   health: number,
   kills: number
 ) {
-  const { container, bg, fg, kills: killsLabel } = this.getOrCreateHealthBar(
-    id
-  );
+  const {
+    container,
+    bg,
+    fg,
+    kills: killsLabel,
+  } = this.getOrCreateHealthBar(id);
   // Clamp
   const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
   // Width scales with sprite size (min 48)
