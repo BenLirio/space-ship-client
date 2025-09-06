@@ -6,6 +6,7 @@ import {
   InputSnapshot,
   ProjectileSnapshot,
 } from "./types/state";
+import { ScoreboardItem } from "./types/websocket";
 
 let _clientId: string | undefined;
 // Map of remote ship id -> snapshot
@@ -14,6 +15,8 @@ let _localShipImageUrl: string | undefined;
 let _inputSnapshot: InputSnapshot | undefined;
 // Map projectile id -> projectile snapshot
 let _projectiles: Record<string, ProjectileSnapshot> = {};
+// Latest scoreboard snapshot
+let _scoreboard: ScoreboardItem[] = [];
 
 const listeners = new Set<Listener>();
 
@@ -83,4 +86,15 @@ function notify() {
       console.warn("listener error", e);
     }
   });
+}
+
+// Scoreboard accessors
+export function updateScoreboard(items: ScoreboardItem[]) {
+  // Defensive copy and minimal normalization
+  _scoreboard = Array.isArray(items) ? [...items] : [];
+  notify();
+}
+
+export function getScoreboard(): ScoreboardItem[] {
+  return _scoreboard;
 }

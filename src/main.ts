@@ -9,7 +9,8 @@ import {
   getInputSnapshot,
   updateProjectiles,
 } from "./clientState";
-import { ServerMessage } from "./types/websocket";
+import { ServerMessage, ScoreboardPayload } from "./types/websocket";
+import { updateScoreboard } from "./clientState";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -92,6 +93,17 @@ function connectWebSocket() {
             }
             if (Array.isArray(projectiles)) {
               updateProjectiles(projectiles as any);
+            }
+            break;
+          }
+          case "scoreboard": {
+            const payload = msg.payload as ScoreboardPayload;
+            if (payload && Array.isArray(payload.items)) {
+              updateScoreboard(payload.items as any);
+              // also broadcast DOM event for any non-Phaser UI (optional)
+              window.dispatchEvent(
+                new CustomEvent("ws-scoreboard", { detail: payload.items })
+              );
             }
             break;
           }

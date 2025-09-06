@@ -17,6 +17,8 @@ import {
   getProjectiles,
 } from "../clientState";
 import { RemoteShipSnapshot, ProjectileSnapshot } from "../types/state";
+import { getScoreboard, subscribe as subscribeState } from "../clientState";
+import type { ScoreboardItem } from "../types/websocket";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -46,6 +48,9 @@ export class MainScene extends Phaser.Scene {
     string,
     Phaser.GameObjects.Container
   >();
+  // DOM HUD: scoreboard
+  scoreboardRoot?: HTMLDivElement;
+  private unsubscribeScoreboard?: () => void;
 
   constructor() {
     super("main");
@@ -91,6 +96,7 @@ export class MainScene extends Phaser.Scene {
       this.maybeToggleJoystick();
       this.positionJoystick();
       this.positionFireButton();
+      this.layoutScoreboard();
     });
     window.addEventListener("orientationchange", this.handleOrientationChange);
     this.resizeListenerBound = true;
@@ -99,6 +105,10 @@ export class MainScene extends Phaser.Scene {
     this.maybeToggleJoystick();
     this.positionJoystick();
     this.positionFireButton();
+    this.ensureScoreboardDom();
+    this.layoutScoreboard();
+    this.unsubscribeScoreboard = subscribeState(() => this.renderScoreboard());
+    this.renderScoreboard();
 
     // No external loader panel in new flow.
 
@@ -502,6 +512,12 @@ export class MainScene extends Phaser.Scene {
     // Destroy health bars
     for (const [, c] of this.healthBars) c.destroy(true);
     this.healthBars.clear();
+    // Remove scoreboard DOM
+    if (this.unsubscribeScoreboard) this.unsubscribeScoreboard();
+    if (this.scoreboardRoot) {
+      this.scoreboardRoot.remove();
+      this.scoreboardRoot = undefined;
+    }
   }
 }
 
@@ -532,6 +548,10 @@ export interface MainScene {
     name?: string
   ): void;
   positionHealthBars(): void;
+  // Scoreboard helpers
+  ensureScoreboardDom(): void;
+  layoutScoreboard(): void;
+  renderScoreboard(items?: ScoreboardItem[]): void;
 }
 
 MainScene.prototype.ensureIndicatorTexture = function ensureIndicatorTexture(
@@ -820,4 +840,73 @@ MainScene.prototype.positionHealthBars = function positionHealthBars(
     c.setDepth(sprite.depth + 1);
     c.setVisible(true);
   }
+};
+
+// --- HUD: Scoreboard (DOM overlay) ---
+MainScene.prototype.ensureScoreboardDom = function ensureScoreboardDom(
+  this: MainScene
+) {
+  if (this.scoreboardRoot) return;
+  const root = document.createElement("div");
+  root.id = "scoreboard";
+  root.setAttribute("aria-label", "Scoreboard");
+  root.innerHTML = `<div class="sb-inner"></div>`;
+  // Styles injected once
+  if (!document.getElementById("scoreboard-styles")) {
+    const style = document.createElement("style");
+    style.id = "scoreboard-styles";
+    style.textContent = `
+    #scoreboard { position: fixed; top: 12px; right: 12px; z-index: 1200; pointer-events: none; }
+    #scoreboard .sb-inner { max-width: min(36vw, 420px); background: rgba(8,12,20,.55); border:1px solid rgba(120,160,200,.18); backdrop-filter: blur(12px) saturate(140%); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px -12px rgba(0,0,0,.6); }
+    #scoreboard .row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; }
+    #scoreboard .row:nth-child(1) { background: linear-gradient(90deg, rgba(255,215,0,.18), rgba(255,215,0,0)); }
+    #scoreboard .row:nth-child(2) { background: linear-gradient(90deg, rgba(192,192,192,.14), rgba(192,192,192,0)); }
+    #scoreboard .row:nth-child(3) { background: linear-gradient(90deg, rgba(205,127,50,.12), rgba(205,127,50,0)); }
+    #scoreboard img { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; background:#0b131d; }
+    #scoreboard .name { flex: 1 1 auto; min-width: 60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family: monospace; font-size: 12px; color:#def; }
+    #scoreboard .score { font-family: monospace; font-weight: 700; color:#fff; }
+    @media (max-width: 900px) { #scoreboard { top: 8px; right: 8px; } #scoreboard .sb-inner { max-width: 60vw; padding:6px; } }
+    `;
+    document.head.appendChild(style);
+  }
+  document.body.appendChild(root);
+  this.scoreboardRoot = root;
+};
+
+MainScene.prototype.layoutScoreboard = function layoutScoreboard(
+  this: MainScene
+) {
+  // Currently anchored top-right; could adapt size based on viewport if needed
+  // No-op beyond CSS for now.
+};
+
+MainScene.prototype.renderScoreboard = function renderScoreboard(
+  this: MainScene,
+  items?: ScoreboardItem[]
+) {
+  if (!this.scoreboardRoot) return;
+  const list = items ?? getScoreboard();
+  const inner = this.scoreboardRoot.querySelector(".sb-inner");
+  if (!inner) return;
+  // Sort: score desc, then createdAt asc
+  const sorted = [...list].sort((a, b) => {
+    const s = (b.score ?? 0) - (a.score ?? 0);
+    if (s !== 0) return s;
+    const ad = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const bd = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return ad - bd;
+  });
+  // Limit visible rows for space (e.g., top 8)
+  const MAX_ROWS = 8;
+  const rows = sorted.slice(0, MAX_ROWS).map((i) => {
+    const safeName = (i.name || i.id || "").toString();
+    const title = `${safeName} — ${i.score}`;
+    const shipUrl = i.shipImageUrl || "";
+    return `<div class="row" title="${title}">
+      <img src="${shipUrl}" alt="ship" />
+      <span class="name">${safeName}</span>
+      <span class="score">${i.score}</span>
+    </div>`;
+  });
+  inner.innerHTML = rows.join("");
 };
