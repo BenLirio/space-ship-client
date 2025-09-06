@@ -10,6 +10,8 @@ export class SplashScene extends Phaser.Scene {
   private generateBtn?: HTMLButtonElement;
   private defaultBtn?: HTMLButtonElement;
   private statusEl?: HTMLDivElement;
+  private infoEl?: HTMLDivElement;
+  private infoMessages: string[] = [];
   private generateInFlight = false;
   // We don't persist the URL locally; server state drives appearance
   private unsubscribeState?: () => void;
@@ -134,7 +136,12 @@ export class SplashScene extends Phaser.Scene {
     status.className = "status";
     status.setAttribute("aria-live", "polite");
 
-    form.append(label, input, btnRow, status);
+    const info = document.createElement("div");
+    info.className = "info-log";
+    info.setAttribute("aria-live", "polite");
+    info.setAttribute("aria-atomic", "false");
+
+    form.append(label, input, btnRow, status, info);
     stack.append(header, form);
     root.appendChild(stack);
     document.body.appendChild(root);
@@ -143,6 +150,7 @@ export class SplashScene extends Phaser.Scene {
     this.generateBtn = generate;
     this.defaultBtn = startDefault;
     this.statusEl = status as HTMLDivElement;
+    this.infoEl = info as HTMLDivElement;
 
     // Events
     form.addEventListener("submit", (e) => {
@@ -197,6 +205,9 @@ export class SplashScene extends Phaser.Scene {
       return;
     }
     try {
+      // Reset previous info messages for a fresh attempt
+      this.infoMessages = [];
+      this.renderInfo();
       const ws: WebSocket | undefined = (window as any).ws;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         this.status("WebSocket not connected yet.");
@@ -231,17 +242,39 @@ export class SplashScene extends Phaser.Scene {
 
   private onWsInfo = (ev: CustomEvent) => {
     if (!this.awaitingShip) return; // ignore after done
-    const msg = ev.detail;
-    if (typeof msg === "string") {
-      // Log info to console only (no UI update) per request
-      // eslint-disable-next-line no-console
-      console.log("info:", msg);
-    }
+    const raw = ev.detail;
+    const msg =
+      typeof raw === "string"
+        ? raw
+        : typeof raw?.message === "string"
+        ? raw.message
+        : (() => {
+            try {
+              return JSON.stringify(raw);
+            } catch {
+              return String(raw);
+            }
+          })();
+    // eslint-disable-next-line no-console
+    console.log("info:", msg);
+    this.addInfo(msg);
   };
 
   private onWsError = (ev: CustomEvent) => {
-    const msg = ev.detail;
-    this.status("Error: " + msg);
+    const raw = ev.detail;
+    const msg =
+      typeof raw === "string"
+        ? raw
+        : typeof raw?.message === "string"
+        ? raw.message
+        : (() => {
+            try {
+              return JSON.stringify(raw);
+            } catch {
+              return String(raw);
+            }
+          })();
+    this.status("Error: " + msg, "error");
     this.cleanupGenerationListeners();
     this.generateInFlight = false;
     this.awaitingShip = false;
@@ -276,8 +309,32 @@ export class SplashScene extends Phaser.Scene {
     }
   }
 
-  private status(msg: string) {
-    if (this.statusEl) this.statusEl.textContent = msg;
+  private status(msg: string, kind: "info" | "error" | "normal" = "normal") {
+    if (!this.statusEl) return;
+    this.statusEl.textContent = msg;
+    this.statusEl.classList.toggle("error", kind === "error");
+  }
+
+  private addInfo(msg: string) {
+    this.infoMessages.push(msg);
+    if (this.infoMessages.length > 3)
+      this.infoMessages = this.infoMessages.slice(-3);
+    this.renderInfo();
+  }
+
+  private renderInfo() {
+    if (!this.infoEl) return;
+    // Clear
+    this.infoEl.textContent = "";
+    const wrap = document.createElement("div");
+    wrap.className = "info-log-list";
+    for (const item of this.infoMessages) {
+      const line = document.createElement("div");
+      line.className = "info-item";
+      line.textContent = item;
+      wrap.appendChild(line);
+    }
+    this.infoEl.appendChild(wrap);
   }
 
   private setBusy(isBusy: boolean) {
