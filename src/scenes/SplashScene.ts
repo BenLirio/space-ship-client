@@ -28,52 +28,123 @@ export class SplashScene extends Phaser.Scene {
   create() {
     logConfigOnce();
     this.buildOverlay();
-    // Rerun layout on resize and orientation changes
-    this.scale.on("resize", () => this.layout(), this);
-    window.addEventListener("resize", this.onWindowResize);
-    window.addEventListener("orientationchange", this.onWindowResize);
-    this.layout();
   }
 
   private buildOverlay() {
     const root = document.createElement("div");
     root.className = "splash-overlay";
-    root.innerHTML = `
-      <div class="splash-stack" role="dialog" aria-labelledby="splash-title">
-        <header class="splash-header">
-          <h1 id="splash-title" class="splash-title">AI SPACESHIP</h1>
-          <p class="splash-sub">Generate your unique ship with a prompt<br><span class="splash-sub-alt">and fly around with others in realtime</span></p>
-          <div class="gh-star-wrap">
-            <!-- GitHub star button -->
-            <a class="github-button" href="https://github.com/BenLirio/space-ship-generator" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star BenLirio/space-ship-generator on GitHub">Star</a>
-            <a class="discord-link" href="https://discord.com/invite/F69uzFtgpT" target="_blank" rel="noopener" aria-label="Join our Discord (opens in new tab)">Join our Discord</a>
-            <a class="banana-link" href="https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/" target="_blank" rel="noopener" aria-label="Model info (opens in new tab)">🍌 uses nano banana</a>
-          </div>
-        </header>
-        <form class="splash-form" autocomplete="off">
-          <label class="visually-hidden" for="shipPrompt">Ship prompt</label>
-          <input id="shipPrompt" name="shipPrompt" type="text" inputmode="text" placeholder="e.g. Sleek explorer with blue thrusters" />
-          <div class="button-row">
-            <button type="submit" class="primary" data-action="generate">Generate Ship</button>
-            <button type="button" class="secondary" data-action="default">Start with Default</button>
-          </div>
-          <div class="status" aria-live="polite"></div>
-        </form>
-      </div>`;
+
+    const stack = document.createElement("div");
+    stack.className = "splash-stack";
+    stack.setAttribute("role", "dialog");
+    stack.setAttribute("aria-labelledby", "splash-title");
+
+    const header = document.createElement("header");
+    header.className = "splash-header";
+
+    const h1 = document.createElement("h1");
+    h1.id = "splash-title";
+    h1.className = "splash-title";
+    h1.textContent = "AI SPACESHIP";
+
+    const p = document.createElement("p");
+    p.className = "splash-sub";
+    p.append(
+      document.createTextNode("Generate your unique ship with a prompt")
+    );
+    p.appendChild(document.createElement("br"));
+    const spanAlt = document.createElement("span");
+    spanAlt.className = "splash-sub-alt";
+    spanAlt.textContent = "and fly around with others in realtime";
+    p.appendChild(spanAlt);
+
+    const starWrap = document.createElement("div");
+    starWrap.className = "gh-star-wrap";
+    // GitHub Star button anchor (script enhances it)
+    const gh = document.createElement("a");
+    gh.className = "github-button";
+    gh.href = "https://github.com/BenLirio/space-ship-generator";
+    gh.setAttribute(
+      "data-color-scheme",
+      "no-preference: light; light: light; dark: dark;"
+    );
+    gh.setAttribute("data-icon", "octicon-star");
+    gh.setAttribute("data-size", "large");
+    gh.setAttribute("data-show-count", "true");
+    gh.setAttribute(
+      "aria-label",
+      "Star BenLirio/space-ship-generator on GitHub"
+    );
+    gh.textContent = "Star";
+
+    const discord = document.createElement("a");
+    discord.className = "discord-link";
+    discord.href = "https://discord.com/invite/F69uzFtgpT";
+    discord.target = "_blank";
+    discord.rel = "noopener";
+    discord.setAttribute("aria-label", "Join our Discord (opens in new tab)");
+    discord.textContent = "Join our Discord";
+
+    const banana = document.createElement("a");
+    banana.className = "banana-link";
+    banana.href =
+      "https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/";
+    banana.target = "_blank";
+    banana.rel = "noopener";
+    banana.setAttribute("aria-label", "Model info (opens in new tab)");
+    banana.textContent = "🍌 uses nano banana";
+
+    starWrap.append(gh, discord, banana);
+    header.append(h1, p, starWrap);
+
+    const form = document.createElement("form");
+    form.className = "splash-form";
+    form.autocomplete = "off";
+
+    const label = document.createElement("label");
+    label.className = "visually-hidden";
+    label.htmlFor = "shipPrompt";
+    label.textContent = "Ship prompt";
+
+    const input = document.createElement("input");
+    input.id = "shipPrompt";
+    input.name = "shipPrompt";
+    input.type = "text";
+    input.setAttribute("inputmode", "text");
+    input.placeholder = "e.g. Sleek explorer with blue thrusters";
+
+    const btnRow = document.createElement("div");
+    btnRow.className = "button-row";
+
+    const generate = document.createElement("button");
+    generate.type = "submit";
+    generate.className = "primary";
+    generate.setAttribute("data-action", "generate");
+    generate.textContent = "Generate Ship";
+
+    const startDefault = document.createElement("button");
+    startDefault.type = "button";
+    startDefault.className = "secondary";
+    startDefault.setAttribute("data-action", "default");
+    startDefault.textContent = "Start with Default";
+
+    btnRow.append(generate, startDefault);
+
+    const status = document.createElement("div");
+    status.className = "status";
+    status.setAttribute("aria-live", "polite");
+
+    form.append(label, input, btnRow, status);
+    stack.append(header, form);
+    root.appendChild(stack);
     document.body.appendChild(root);
     this.overlayRoot = root;
-    this.inputEl =
-      root.querySelector<HTMLInputElement>("#shipPrompt") || undefined;
-    this.generateBtn =
-      root.querySelector<HTMLButtonElement>("button[data-action=generate]") ||
-      undefined;
-    this.defaultBtn =
-      root.querySelector<HTMLButtonElement>("button[data-action=default]") ||
-      undefined;
-    this.statusEl = root.querySelector<HTMLDivElement>(".status") || undefined;
+    this.inputEl = input;
+    this.generateBtn = generate;
+    this.defaultBtn = startDefault;
+    this.statusEl = status as HTMLDivElement;
 
     // Events
-    const form = root.querySelector("form")!;
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       if (this.generateInFlight) return;
@@ -106,16 +177,7 @@ export class SplashScene extends Phaser.Scene {
     }
   }
 
-  private onWindowResize = () => this.layout();
-
-  private layout() {
-    if (!this.overlayRoot) return;
-    // Use JS only for CSS var that tracks innerHeight (browser UI chrome changes)
-    document.documentElement.style.setProperty(
-      "--app-vh",
-      `${window.innerHeight * 0.01}px`
-    );
-  }
+  // No imperative layout needed; CSS handles responsive behavior.
 
   private notifyStartWithDefault() {
     try {
@@ -237,8 +299,6 @@ export class SplashScene extends Phaser.Scene {
 
   private startGame() {
     // Clean up DOM overlay
-    window.removeEventListener("resize", this.onWindowResize);
-    window.removeEventListener("orientationchange", this.onWindowResize);
     if (this.overlayRoot) {
       this.overlayRoot.remove();
       this.overlayRoot = undefined;

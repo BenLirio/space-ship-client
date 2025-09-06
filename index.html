@@ -19,62 +19,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <!-- Use relative path so PWA manifest works when hosted under a sub-path (e.g. /space-ship-client/). -->
   <link rel="manifest" href="manifest.webmanifest" />
-  <style>
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      color: #fff;
-      font-family: system-ui, sans-serif;
-      overscroll-behavior: none;
-      /* prevent pull-to-refresh bounce */
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-      height: 100%;
-      overflow: hidden;
-      /* prevent initial scrollbar on orientation changes */
-    }
-
-    #game-container {
-      width: 100vw;
-      height: 100vh;
-      /* fallback */
-      height: 100dvh;
-      /* modern dynamic viewport */
-      min-height: 100dvh;
-      overflow: hidden;
-      touch-action: none;
-    }
-
-    canvas {
-      display: block;
-      margin: 0 auto;
-    }
-
-
-    /* Portrait overlay */
-    #rotate-overlay {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      color: #fff;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 40px;
-      z-index: 2000;
-      font-size: 20px;
-    }
-
-    @media (orientation: portrait) and (max-width: 900px) {
-      #rotate-overlay {
-        display: flex;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/src/styles/global.css" />
 </head>
 
 <body>
