@@ -5,7 +5,6 @@ export class ProjectileRenderer {
   static readonly MAX_RENDERED = 500;
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
-  private lastSync = 0;
   private textureKey = "projectile-ball";
 
   constructor(scene: Phaser.Scene) {
@@ -53,7 +52,6 @@ export class ProjectileRenderer {
       img.x = p.position.x;
       img.y = p.position.y;
     }
-    this.lastSync = performance.now();
   }
 
   extrapolate(delta: number, snapshots: Record<string, ProjectileSnapshot>) {

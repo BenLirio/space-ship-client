@@ -28,7 +28,7 @@ export class SplashScene extends Phaser.Scene {
   create() {
     logConfigOnce();
     this.buildOverlay();
-  // Rerun layout on resize and orientation changes
+    // Rerun layout on resize and orientation changes
     this.scale.on("resize", () => this.layout(), this);
     window.addEventListener("resize", this.onWindowResize);
     window.addEventListener("orientationchange", this.onWindowResize);

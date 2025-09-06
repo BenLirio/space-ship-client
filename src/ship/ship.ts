@@ -29,20 +29,6 @@ export function createShipSprite(
 
 // Target largest dimension for ships (world pixels)
 export const SHIP_TARGET_MAX_SIZE = 96; // logical baseline size
-export const SHIP_SCALE_MULTIPLIER = 1.5; // +50%
-
-export function applyStandardShipScale(
-  sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody
-) {
-  const tex = sprite.texture;
-  if (!tex) return;
-  const frame = tex.get();
-  const w = frame.width;
-  const h = frame.height;
-  const maxDim = Math.max(w, h) || 1;
-  const scale = (SHIP_TARGET_MAX_SIZE / maxDim) * SHIP_SCALE_MULTIPLIER;
-  sprite.setScale(scale);
-}
 
 // Dynamically load a PNG from a URL into the texture manager under a stable key.
 // Returns a Promise that resolves with the (possibly new) texture key to use.
