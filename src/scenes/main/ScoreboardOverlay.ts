@@ -14,9 +14,7 @@ export class ScoreboardOverlay {
     this.root = root;
   }
 
-  layout() {
-    // Reserved for future layout hooks
-  }
+  layout() {}
 
   render(items: ScoreboardItem[]) {
     if (!this.root) return;

@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import { preloadShip, createShipSprite } from "../ship/ship";
-import { ArcadeInput } from "../types/ship";
 import { makeNearBlackTransparent } from "../ship/ship";
 import { VirtualJoystick } from "../mobile/VirtualJoystick";
 import { VirtualFireButton } from "../mobile/VirtualFireButton";
@@ -8,7 +7,6 @@ import {
   subscribe,
   getRemoteShips,
   getClientId,
-  setLocalShipImageUrl,
   setInputSnapshot,
   getProjectiles,
 } from "../clientState";
@@ -24,8 +22,7 @@ import { ProjectileRenderer } from "./main/ProjectileRenderer";
 
 export class MainScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private baseSpeed = 420; // still used for joystick -> input magnitude (not local movement)
-  private inputState!: ArcadeInput;
+  private inputKeys!: Record<string, Phaser.Input.Keyboard.Key>;
   private joystick?: VirtualJoystick;
   private fireButton?: VirtualFireButton;
   protected remoteSprites = new Map<
@@ -53,37 +50,24 @@ export class MainScene extends Phaser.Scene {
     preloadShip(this);
   }
 
-  create(data: { shipTexture?: string; shipImageUrl?: string }) {
+  create() {
     // Background grid first so it's behind everything
     this.grid = new BackgroundGrid(this);
     // HUD managers
     this.indicators = new OffscreenIndicators(this);
     this.healthBars = new HealthBarManager(this);
     this.projectiles = new ProjectileRenderer(this);
-    // Allow multiple simultaneous touch points (joystick + fire button, etc.)
-    // By default Phaser only tracks a single active pointer. Add a few extras.
+    // Allow multiple simultaneous touch points
     this.input.addPointer(3); // mouse/primary + 3 more = up to 4 concurrent touches
     this.cursors = this.input.keyboard!.createCursorKeys();
     const kb = this.input.keyboard!;
     // Include S so backward / reverse input can be transmitted to server
-    const extraKeys = kb.addKeys({ W: "W", A: "A", S: "S", D: "D" }) as Record<
+    this.inputKeys = kb.addKeys({ W: "W", A: "A", S: "S", D: "D" }) as Record<
       string,
       Phaser.Input.Keyboard.Key
     >;
     // Add SPACE key separately (not part of Phaser's built-in CursorKeys set)
     this.spaceKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-
-    this.inputState = {
-      cursors: this.cursors, // kept for potential future use
-      keys: extraKeys,
-    };
-
-    // We no longer create / simulate a local-authority ship. We'll wait for the
-    // server snapshot (which now also includes our own ship) and spawn it there.
-    // (Optional placeholder could be added here if desired.)
-    if (data?.shipImageUrl) {
-      setLocalShipImageUrl(data.shipImageUrl);
-    }
 
     // Resize/orientation handling
     this.scale.on("resize", () => {
@@ -108,15 +92,12 @@ export class MainScene extends Phaser.Scene {
     );
     this.scoreboard.render(getScoreboard());
 
-    // No external loader panel in new flow.
-
     // Subscribe to remote ship updates
+
     this.unsubscribe = subscribe(() => this.syncRemoteShips());
     this.syncRemoteShips(); // initial
 
-    // EXPANSIVE WORLD & CAMERA FOLLOW
-    // Give the physics world extremely large bounds to simulate an "infinite" space.
-    // (If later you want true dynamic expansion, you can watch ship position and enlarge as needed.)
+    // Expansive world & camera follow
     const HUGE = 10_000_000; // 10 million px each direction (arbitrary large)
     this.physics.world.setBounds(-HUGE, -HUGE, HUGE * 2, HUGE * 2);
     // Hard follow (no interpolation) will be done manually in update each frame.
@@ -147,14 +128,10 @@ export class MainScene extends Phaser.Scene {
     captureKey(c.down, "ArrowDown");
     captureKey(c.left, "ArrowLeft");
     captureKey(c.right, "ArrowRight");
-    const extra = (this.inputState?.keys || {}) as Record<
-      string,
-      Phaser.Input.Keyboard.Key
-    >;
-    captureKey(extra.W, "W");
-    captureKey(extra.A, "A");
-    captureKey(extra.S, "S");
-    captureKey(extra.D, "D");
+    captureKey(this.inputKeys?.W, "W");
+    captureKey(this.inputKeys?.A, "A");
+    captureKey(this.inputKeys?.S, "S");
+    captureKey(this.inputKeys?.D, "D");
     // Space (fire / action)
     captureKey(this.spaceKey, "SPACE");
     let jx = 0;
@@ -175,11 +152,7 @@ export class MainScene extends Phaser.Scene {
     this.projectiles.extrapolate(delta, getProjectiles());
   }
 
-  // Wrapping removed: movement is unbounded. (Keep placeholder methods if future constraints needed.)
-
-  private areControlsSuppressed() {
-    return false;
-  }
+  // Wrapping removed: movement is unbounded.
   private positionJoystick() {
     if (!this.joystick) return;
     // Instead of destroying (which drops active touch) just move center.
@@ -358,10 +331,7 @@ export class MainScene extends Phaser.Scene {
     this.projectiles.sync(getProjectiles());
   }
 
-  private extrapolateProjectiles(delta: number) {
-    // kept for backward compatibility if called somewhere else
-    this.projectiles.extrapolate(delta, getProjectiles());
-  }
+  // projectile extrapolation handled directly in update()
 
   shutdown() {
     if (this.unsubscribe) this.unsubscribe();
@@ -386,9 +356,4 @@ export class MainScene extends Phaser.Scene {
     if (this.unsubscribeScoreboard) this.unsubscribeScoreboard();
     this.scoreboard?.destroy();
   }
-}
-// Keep formatDistance helper if needed elsewhere
-export function formatDistance(meters: number): string {
-  if (meters >= 1000) return (meters / 1000).toFixed(1) + " km";
-  return Math.round(meters) + " m";
 }

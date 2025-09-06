@@ -5,13 +5,13 @@ import { subscribe, getClientId, getRemoteShips } from "../clientState";
 import "../styles/splash.css";
 
 export class SplashScene extends Phaser.Scene {
-  private overlayRoot?: HTMLDivElement; // Entire splash UI (responsive DOM)
+  private overlayRoot?: HTMLDivElement;
   private inputEl?: HTMLInputElement;
   private generateBtn?: HTMLButtonElement;
   private defaultBtn?: HTMLButtonElement;
   private statusEl?: HTMLDivElement;
   private generateInFlight = false;
-  private generatedImageUrl?: string; // Only need URL now; texture loaded in MainScene
+  // We don't persist the URL locally; server state drives appearance
   private unsubscribeState?: () => void;
   private awaitingShip = false;
   private awaitedId?: string;
@@ -28,7 +28,7 @@ export class SplashScene extends Phaser.Scene {
   create() {
     logConfigOnce();
     this.buildOverlay();
-    // Rerun layout on phaser resize & window resize (covers mobile chrome show/hide)
+  // Rerun layout on resize and orientation changes
     this.scale.on("resize", () => this.layout(), this);
     window.addEventListener("resize", this.onWindowResize);
     window.addEventListener("orientationchange", this.onWindowResize);
@@ -193,7 +193,6 @@ export class SplashScene extends Phaser.Scene {
     const ships = getRemoteShips();
     const mine = (ships as any)[id];
     if (mine && mine.appearance?.shipImageUrl) {
-      this.generatedImageUrl = mine.appearance.shipImageUrl;
       this.cleanupGenerationListeners();
       this.awaitingShip = false;
       this.generateInFlight = false;
@@ -244,8 +243,6 @@ export class SplashScene extends Phaser.Scene {
       this.overlayRoot.remove();
       this.overlayRoot = undefined;
     }
-    this.scene.start("main", {
-      shipImageUrl: this.generatedImageUrl,
-    });
+    this.scene.start("main");
   }
 }

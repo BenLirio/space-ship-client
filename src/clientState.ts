@@ -11,7 +11,6 @@ import { ScoreboardItem } from "./types/websocket";
 let _clientId: string | undefined;
 // Map of remote ship id -> snapshot
 let _remoteShips: Record<string, RemoteShipSnapshot> = {};
-let _localShipImageUrl: string | undefined;
 let _inputSnapshot: InputSnapshot | undefined;
 // Map projectile id -> projectile snapshot
 let _projectiles: Record<string, ProjectileSnapshot> = {};
@@ -41,14 +40,7 @@ export function getRemoteShips() {
   return _remoteShips;
 }
 
-export function setLocalShipImageUrl(url: string) {
-  _localShipImageUrl = url;
-  notify();
-}
-
-export function getLocalShipImageUrl() {
-  return _localShipImageUrl;
-}
+// Removed local ship image URL cache (server snapshot is the source of truth)
 
 export function setInputSnapshot(s: InputSnapshot) {
   _inputSnapshot = s;
