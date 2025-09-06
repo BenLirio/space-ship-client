@@ -363,7 +363,8 @@ export class MainScene extends Phaser.Scene {
           id,
           sprite,
           typeof snap.health === "number" ? snap.health : 100,
-          typeof snap.kills === "number" ? snap.kills : 0
+          typeof snap.kills === "number" ? snap.kills : 0,
+          (snap as any).name
         );
 
         // No smooth follow attachment needed; camera centers on player each update.
@@ -527,7 +528,8 @@ export interface MainScene {
     id: string,
     sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
     health: number,
-    kills: number
+    kills: number,
+    name?: string
   ): void;
   positionHealthBars(): void;
 }
@@ -596,6 +598,7 @@ MainScene.prototype.updateOffscreenIndicators =
   function updateOffscreenIndicators(this: MainScene) {
     const cam = this.cameras.main;
     const clientId = getClientId();
+    const snapshots = getRemoteShips();
     const halfW = cam.width / 2;
     const halfH = cam.height / 2;
     const margin = 28; // keep slightly inside the viewport
@@ -607,6 +610,13 @@ MainScene.prototype.updateOffscreenIndicators =
 
     for (const [id, sprite] of this.remoteSprites) {
       if (id === clientId) continue; // don't show indicator for our own ship
+      const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
+      // Hide indicator if the ship is explicitly dead (health <= 0)
+      if (snap && typeof snap.health === "number" && snap.health <= 0) {
+        const cont = this.offscreenIndicators.get(id);
+        if (cont) cont.setVisible(false);
+        continue;
+      }
       const dxWorld = sprite.x - cam.midPoint.x;
       const dyWorld = sprite.y - cam.midPoint.y;
       const sx = dxWorld * cam.zoom;
@@ -650,8 +660,16 @@ MainScene.prototype.updateOffscreenIndicators =
       const t = Phaser.Math.Clamp((dist - near) / (far - near), 0, 1);
       const scale = maxScale - t * (maxScale - minScale);
       arrow.setScale(scale);
-      // Hide text label (we use size as distance cue now)
-      label.setVisible(false);
+      // Show name under arrow if available
+      const nm = snap && typeof snap.name === "string" ? snap.name.trim() : "";
+      if (nm) {
+        const maxChars = 18;
+        const txt = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
+        label.setText(txt);
+        label.setVisible(true);
+      } else {
+        label.setVisible(false);
+      }
 
       active.add(id);
     }
@@ -676,6 +694,7 @@ export interface HealthBarParts {
   bg: Phaser.GameObjects.Rectangle;
   fg: Phaser.GameObjects.Rectangle;
   kills: Phaser.GameObjects.Text;
+  name: Phaser.GameObjects.Text;
 }
 
 MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
@@ -694,7 +713,10 @@ MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
     const kills = children.find(
       (c) => c.getData && c.getData("kind") === "hb-kills"
     ) as Phaser.GameObjects.Text;
-    return { container, bg, fg, kills };
+    const name = children.find(
+      (c) => c.getData && c.getData("kind") === "hb-name"
+    ) as Phaser.GameObjects.Text;
+    return { container, bg, fg, kills, name };
   }
   const c = this.add.container(0, 0);
   c.setDepth(200); // above ships
@@ -714,9 +736,19 @@ MainScene.prototype.getOrCreateHealthBar = function getOrCreateHealthBar(
   });
   kills.setOrigin(0.5, 1); // centered above bar
   kills.setData("kind", "hb-kills");
-  c.add([bg, fg, kills]);
+  // Name label sits above kills
+  const name = this.add.text(0, -22, "", {
+    fontFamily: "monospace",
+    fontSize: "12px",
+    color: "#ffffff",
+    stroke: "#000000",
+    strokeThickness: 3,
+  });
+  name.setOrigin(0.5, 1);
+  name.setData("kind", "hb-name");
+  c.add([bg, fg, kills, name]);
   this.healthBars.set(id, c);
-  return { container: c, bg, fg, kills };
+  return { container: c, bg, fg, kills, name };
 };
 
 MainScene.prototype.refreshHealthBar = function refreshHealthBar(
@@ -724,13 +756,15 @@ MainScene.prototype.refreshHealthBar = function refreshHealthBar(
   id: string,
   sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
   health: number,
-  kills: number
+  kills: number,
+  name?: string
 ) {
   const {
     container,
     bg,
     fg,
     kills: killsLabel,
+    name: nameLabel,
   } = this.getOrCreateHealthBar(id);
   // Clamp
   const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
@@ -760,6 +794,16 @@ MainScene.prototype.refreshHealthBar = function refreshHealthBar(
   killsLabel.setText(String(k));
   killsLabel.x = 0; // centered
   killsLabel.y = -8; // relative to container center
+  // Update name label
+  if (nameLabel) {
+    const nm = (name ?? "").trim();
+    const maxChars = 18;
+    const text = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
+    nameLabel.setText(text);
+    nameLabel.x = 0;
+    nameLabel.y = -22;
+    nameLabel.setVisible(!!nm);
+  }
 };
 
 MainScene.prototype.positionHealthBars = function positionHealthBars(

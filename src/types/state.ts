@@ -7,6 +7,8 @@ export interface RemoteShipSnapshot {
   health?: number;
   // New: number of kills for this ship
   kills?: number;
+  // New: display name for the ship
+  name?: string;
 }
 
 export type Listener = () => void;
