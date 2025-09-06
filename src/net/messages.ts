@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { RemoteShipSnapshot, ProjectileSnapshot } from "../types/state";
-import type { ScoreboardPayload } from "../types/websocket";
 
 // Define schemas for server messages
 const Connected = z.object({
@@ -43,20 +42,7 @@ const GameState = z.object({
   }),
 });
 
-const Scoreboard = z.object({
-  type: z.literal("scoreboard"),
-  payload: z.object({
-    items: z.array(
-      z.object({
-        id: z.string(),
-        name: z.string().default(""),
-        score: z.number().default(0),
-        shipImageUrl: z.string().default(""),
-        createdAt: z.string().optional(),
-      })
-    ),
-  }) as unknown as z.ZodType<ScoreboardPayload>,
-});
+// (scoreboard message removed)
 
 const ErrorMsg = z.object({
   type: z.literal("error"),
@@ -67,7 +53,6 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   Connected,
   Info,
   GameState,
-  Scoreboard,
   ErrorMsg,
 ]);
 
@@ -87,7 +72,6 @@ type HandlerMap = Partial<{
   connected: (msg: z.infer<typeof Connected>) => void;
   info: (msg: z.infer<typeof Info>) => void;
   gameState: (msg: z.infer<typeof GameState>) => void;
-  scoreboard: (msg: z.infer<typeof Scoreboard>) => void;
   error: (msg: z.infer<typeof ErrorMsg>) => void;
 }>;
 

@@ -11,13 +11,11 @@ import {
   getProjectiles,
 } from "../clientState";
 import { RemoteShipSnapshot } from "../types/state";
-import { getScoreboard, subscribe as subscribeState } from "../clientState";
 
 // Extracted helpers
 import { BackgroundGrid } from "./main/BackgroundGrid";
 import { OffscreenIndicators } from "./main/OffscreenIndicators";
 import { HealthBarManager } from "./main/HealthBarManager";
-// Using static HTML/CSS scoreboard
 import { ProjectileRenderer } from "./main/ProjectileRenderer";
 
 export class MainScene extends Phaser.Scene {
@@ -39,8 +37,7 @@ export class MainScene extends Phaser.Scene {
   private indicators!: OffscreenIndicators;
   private healthBars!: HealthBarManager;
   private projectiles!: ProjectileRenderer;
-  private scoreboardRoot?: HTMLDivElement;
-  private unsubscribeScoreboard?: () => void;
+  // (scoreboard removed)
 
   constructor() {
     super("main");
@@ -75,7 +72,7 @@ export class MainScene extends Phaser.Scene {
       this.maybeToggleJoystick();
       this.positionJoystick();
       this.positionFireButton();
-      // scoreboard is pure CSS; nothing to do here
+      // (scoreboard removed)
     });
     window.addEventListener("orientationchange", this.handleOrientationChange);
     this.resizeListenerBound = true;
@@ -84,12 +81,7 @@ export class MainScene extends Phaser.Scene {
     this.maybeToggleJoystick();
     this.positionJoystick();
     this.positionFireButton();
-    // Ensure scoreboard container exists (inject from partial if missing)
-    this.ensureScoreboardDom();
-    this.unsubscribeScoreboard = subscribeState(() => {
-      this.renderScoreboard(getScoreboard());
-    });
-    this.renderScoreboard(getScoreboard());
+    // (scoreboard removed)
 
     // Subscribe to remote ship updates
 
@@ -352,55 +344,6 @@ export class MainScene extends Phaser.Scene {
     this.indicators?.clear();
     this.healthBars?.clear();
     this.projectiles?.destroy();
-    if (this.unsubscribeScoreboard) this.unsubscribeScoreboard();
-    // Keep scoreboard across scenes; don't remove global element here
-  }
-
-  private ensureScoreboardDom() {
-    let root = document.getElementById("scoreboard") as HTMLDivElement | null;
-    if (!root) {
-      // Fetch partial from module graph; since we can't fetch at runtime offline, create minimal structure.
-      root = document.createElement("div");
-      root.id = "scoreboard";
-      root.setAttribute("aria-label", "Scoreboard");
-      const inner = document.createElement("div");
-      inner.className = "sb-inner";
-      root.appendChild(inner);
-      document.body.appendChild(root);
-    }
-    this.scoreboardRoot = root;
-  }
-
-  private renderScoreboard(items: any[]) {
-    if (!this.scoreboardRoot) return;
-    const inner = this.scoreboardRoot.querySelector(".sb-inner");
-    if (!inner) return;
-    const sorted = [...items].sort((a, b) => {
-      const s = (b.score ?? 0) - (a.score ?? 0);
-      if (s !== 0) return s;
-      const ad = a.createdAt ? Date.parse(a.createdAt) : 0;
-      const bd = b.createdAt ? Date.parse(b.createdAt) : 0;
-      return ad - bd;
-    });
-    const MAX_ROWS = 8;
-    const frag = document.createDocumentFragment();
-    for (const i of sorted.slice(0, MAX_ROWS)) {
-      const safeName = (i.name || i.id || "").toString();
-      const row = document.createElement("div");
-      row.className = "row";
-      row.title = `${safeName} — ${i.score}`;
-      const img = document.createElement("img");
-      img.src = i.shipImageUrl || "";
-      img.alt = "ship";
-      const name = document.createElement("span");
-      name.className = "name";
-      name.textContent = safeName;
-      const score = document.createElement("span");
-      score.className = "score";
-      score.textContent = String(i.score ?? 0);
-      row.append(img, name, score);
-      frag.appendChild(row);
-    }
-    (inner as HTMLElement).replaceChildren(frag);
+    // (scoreboard removed)
   }
 }

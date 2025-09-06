@@ -9,8 +9,6 @@ import {
   getInputSnapshot,
   updateProjectiles,
 } from "./clientState";
-import { ScoreboardPayload } from "./types/websocket";
-import { updateScoreboard } from "./clientState";
 import { createRouter, parseMessage } from "./net/messages";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -56,13 +54,6 @@ function connectWebSocket() {
       gameState: (msg) => {
         updateRemoteShips(msg.payload.ships as any);
         updateProjectiles(msg.payload.projectiles as any);
-      },
-      scoreboard: (msg) => {
-        const payload = msg.payload as ScoreboardPayload;
-        updateScoreboard(payload.items as any);
-        window.dispatchEvent(
-          new CustomEvent("ws-scoreboard", { detail: payload.items })
-        );
       },
       error: (msg) => {
         // eslint-disable-next-line no-console
