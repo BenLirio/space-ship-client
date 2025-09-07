@@ -33,16 +33,16 @@ export class ProjectileRenderer {
         .map((o) => o.id)
     );
 
-    for (const [id, img] of this.sprites) {
+    this.sprites.forEach((img, id) => {
       if (!ids.has(id)) {
         img.destroy();
         this.sprites.delete(id);
       }
-    }
+    });
 
-    for (const id of ids) {
+    ids.forEach((id) => {
       const p = snapshots[id];
-      if (!p) continue;
+      if (!p) return;
       let img = this.sprites.get(id);
       if (!img) {
         img = this.scene.add.image(p.position.x, p.position.y, this.textureKey);
@@ -51,25 +51,22 @@ export class ProjectileRenderer {
       }
       img.x = p.position.x;
       img.y = p.position.y;
-    }
+    });
   }
 
   extrapolate(delta: number, snapshots: Record<string, ProjectileSnapshot>) {
     if (!this.sprites.size) return;
     const dt = delta / 1000;
-    for (const [id, img] of this.sprites) {
+    this.sprites.forEach((img, id) => {
       const snap = snapshots[id];
-      if (!snap) continue;
+      if (!snap) return;
       img.x += snap.velocity.x * dt;
       img.y += snap.velocity.y * dt;
       const age = Date.now() - snap.createdAt;
       const life = 3000;
-      if (age > life) {
-        img.setAlpha(0.05);
-      } else {
-        const alpha = 1 - age / life;
-        img.setAlpha(Phaser.Math.Clamp(alpha, 0.1, 1));
-      }
+      const alpha =
+        age > life ? 0.05 : Phaser.Math.Clamp(1 - age / life, 0.1, 1);
+      img.setAlpha(alpha);
       const cam = this.scene.cameras.main;
       const view = cam.worldView;
       const margin = 40;
@@ -79,11 +76,11 @@ export class ProjectileRenderer {
         img.y >= view.y - margin &&
         img.y <= view.bottom + margin;
       img.setVisible(inView);
-    }
+    });
   }
 
   destroy() {
-    for (const [, s] of this.sprites) s.destroy();
+    this.sprites.forEach((s) => s.destroy());
     this.sprites.clear();
   }
 }

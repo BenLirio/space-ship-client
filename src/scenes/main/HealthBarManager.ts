@@ -107,17 +107,14 @@ export class HealthBarManager {
   positionAll(
     sprites: Map<string, Phaser.Types.Physics.Arcade.SpriteWithDynamicBody>
   ) {
-    for (const [id, c] of this.bars) {
+    this.bars.forEach((c, id) => {
       const sprite = sprites.get(id);
-      if (!sprite || !sprite.active) {
-        c.setVisible(false);
-        continue;
-      }
+      if (!sprite || !sprite.active) return c.setVisible(false);
       const offsetY = -(sprite.displayHeight || 80) * 0.65;
       c.setPosition(sprite.x, sprite.y + offsetY);
       c.setDepth(sprite.depth + 1);
       c.setVisible(true);
-    }
+    });
   }
 
   destroyFor(id: string) {
@@ -129,7 +126,7 @@ export class HealthBarManager {
   }
 
   clear() {
-    for (const [, c] of this.bars) c.destroy(true);
+    this.bars.forEach((c) => c.destroy(true));
     this.bars.clear();
   }
 }

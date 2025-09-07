@@ -50,9 +50,9 @@ export function getInputSnapshot(): InputSnapshot | undefined {
 export function updateProjectiles(projectiles: ProjectileSnapshot[]) {
   // Rebuild map (server authoritative). Using object for O(1) access by id.
   const next: Record<string, ProjectileSnapshot> = {};
-  for (const p of projectiles) {
-    if (p && p.id) next[p.id] = p;
-  }
+  projectiles.forEach((p) => {
+    next[p.id] = p;
+  });
   _projectiles = next;
   notify();
 }
@@ -67,12 +67,5 @@ export function subscribe(fn: Listener) {
 }
 
 function notify() {
-  listeners.forEach((l) => {
-    try {
-      l();
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn("listener error", e);
-    }
-  });
+  listeners.forEach((l) => l());
 }

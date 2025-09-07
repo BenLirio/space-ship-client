@@ -34,88 +34,66 @@ const game = new Phaser.Game(config);
 
 // Establish a simple WebSocket connection on page load for backend integration.
 function connectWebSocket() {
-  try {
-    logConfigOnce();
-    const ws = new WebSocket(WS_URL);
-    (window as any).ws = ws; // expose for debugging in console
-    // Structured server message type imported from types
+  logConfigOnce();
+  const ws = new WebSocket(WS_URL);
+  (window as any).ws = ws; // expose for debugging in console
 
-    const router = createRouter({
-      connected: (msg) => {
-        setClientId(msg.payload.id);
-      },
-      info: (msg) => {
-        // eslint-disable-next-line no-console
-        console.log("[ws][info]", msg.payload);
-        window.dispatchEvent(
-          new CustomEvent("ws-info", { detail: msg.payload })
-        );
-      },
-      gameState: (msg) => {
-        updateRemoteShips(msg.payload.ships as any);
-        updateProjectiles(msg.payload.projectiles as any);
-      },
-      error: (msg) => {
-        // eslint-disable-next-line no-console
-        console.error("[ws][error]", msg.payload);
-        window.dispatchEvent(
-          new CustomEvent("ws-error", { detail: msg.payload })
-        );
-      },
-    });
-
-    function handleServerMessage(ev: MessageEvent) {
-      const parsed = parseMessage(ev.data);
-      if (!parsed) {
-        // eslint-disable-next-line no-console
-        console.log("[ws][unparseable]", ev.data);
-        return;
-      }
-      router.dispatch(parsed);
-    }
-    ws.addEventListener("open", () => {
+  const router = createRouter({
+    connected: (msg) => setClientId(msg.payload.id),
+    info: (msg) => {
       // eslint-disable-next-line no-console
-      console.log("[ws] open ->", WS_URL);
-    });
-    ws.addEventListener("close", (ev) => {
+      console.log("[ws][info]", msg.payload);
+      window.dispatchEvent(new CustomEvent("ws-info", { detail: msg.payload }));
+    },
+    gameState: (msg) => {
+      updateRemoteShips(msg.payload.ships as any);
+      updateProjectiles(msg.payload.projectiles as any);
+    },
+    error: (msg) => {
       // eslint-disable-next-line no-console
-      console.log("[ws] close", ev.code, ev.reason || "");
-    });
-    ws.addEventListener("error", (err) => {
-      // eslint-disable-next-line no-console
-      console.log("[ws] error", err);
-    });
-    ws.addEventListener("message", handleServerMessage);
+      console.error("[ws][error]", msg.payload);
+      window.dispatchEvent(
+        new CustomEvent("ws-error", { detail: msg.payload })
+      );
+    },
+  });
 
-    // Periodically send just the player input snapshot (30 Hz). Server will derive ship state.
-    const INPUT_SEND_HZ = 30;
-    const interval = setInterval(() => {
-      const id = getClientId();
-      if (!id || ws.readyState !== WebSocket.OPEN) return;
-      try {
-        const input = getInputSnapshot();
-        if (input) {
-          ws.send(
-            JSON.stringify({
-              type: "inputSnapshot",
-              payload: {
-                keysDown: Array.from(input.keysDown),
-                joystick: { x: input.joystick.x, y: input.joystick.y },
-              },
-            })
-          );
-        }
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[ws] failed to send inputSnapshot", e);
-      }
-    }, 1000 / INPUT_SEND_HZ);
-
-    ws.addEventListener("close", () => clearInterval(interval));
-  } catch (e) {
+  ws.addEventListener("open", () => {
     // eslint-disable-next-line no-console
-    console.error("[ws] failed to initiate", e);
-  }
+    console.log("[ws] open ->", WS_URL);
+  });
+  ws.addEventListener("close", (ev) => {
+    // eslint-disable-next-line no-console
+    console.log("[ws] close", ev.code, ev.reason || "");
+  });
+  ws.addEventListener("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.log("[ws] error", err);
+  });
+  ws.addEventListener("message", (ev: MessageEvent) => {
+    const parsed = parseMessage(ev.data);
+    if (!parsed) return console.log("[ws][unparseable]", ev.data);
+    router.dispatch(parsed);
+  });
+
+  // Periodically send just the player input snapshot (30 Hz). Server will derive ship state.
+  const INPUT_SEND_HZ = 30;
+  const interval = setInterval(() => {
+    const id = getClientId();
+    if (!id || ws.readyState !== WebSocket.OPEN) return;
+    const input = getInputSnapshot();
+    if (!input) return;
+    ws.send(
+      JSON.stringify({
+        type: "inputSnapshot",
+        payload: {
+          keysDown: Array.from(input.keysDown),
+          joystick: { x: input.joystick.x, y: input.joystick.y },
+        },
+      })
+    );
+  }, 1000 / INPUT_SEND_HZ);
+  ws.addEventListener("close", () => clearInterval(interval));
 }
 
 connectWebSocket();

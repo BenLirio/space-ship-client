@@ -188,14 +188,9 @@ export class SplashScene extends Phaser.Scene {
   // No imperative layout needed; CSS handles responsive behavior.
 
   private notifyStartWithDefault() {
-    try {
-      const ws: WebSocket | undefined = (window as any).ws;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "startWithDefault" }));
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn("failed to send startWithDefault", e);
+    const ws: WebSocket | undefined = (window as any).ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "startWithDefault" }));
     }
   }
 
@@ -204,76 +199,52 @@ export class SplashScene extends Phaser.Scene {
       this.status("Enter a prompt or use default.");
       return;
     }
-    try {
-      // Reset previous info messages for a fresh attempt
-      this.infoMessages = [];
-      this.renderInfo();
-      const ws: WebSocket | undefined = (window as any).ws;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        this.status("WebSocket not connected yet.");
-        return;
-      }
-      this.generateInFlight = true;
-      this.awaitingShip = true;
-      this.awaitedId = getClientId();
-      this.setBusy(true);
-      ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
-      // Listen for info & error events globally (added in main.ts)
-      window.addEventListener("ws-info", this.onWsInfo as any);
-      window.addEventListener("ws-error", this.onWsError as any);
-      // Subscribe to state updates to detect when our ship appears
-      this.unsubscribeState = subscribe(() => this.checkForGeneratedShip());
-      // Timeout fallback
-      this.timeoutHandle = window.setTimeout(() => {
-        if (this.awaitingShip) {
-          this.status("Timeout waiting for ship. You can retry.");
-          this.cleanupGenerationListeners();
-          this.generateInFlight = false;
-          this.awaitingShip = false;
-          this.setBusy(false);
-        }
-      }, 30000);
-    } catch (e: any) {
-      this.status("Failed to send prompt: " + (e.message || e));
+    // Reset previous info messages for a fresh attempt
+    this.infoMessages = [];
+    this.renderInfo();
+    const ws: WebSocket | undefined = (window as any).ws;
+    if (ws?.readyState !== WebSocket.OPEN) {
+      this.status("WebSocket not connected yet.");
+      return;
+    }
+    this.generateInFlight = true;
+    this.awaitingShip = true;
+    this.awaitedId = getClientId();
+    this.setBusy(true);
+    ws.send(JSON.stringify({ type: "startWithPrompt", payload: { prompt } }));
+    // Listen for info & error events globally (added in main.ts)
+    window.addEventListener("ws-info", this.onWsInfo as any);
+    window.addEventListener("ws-error", this.onWsError as any);
+    // Subscribe to state updates to detect when our ship appears
+    this.unsubscribeState = subscribe(() => this.checkForGeneratedShip());
+    // Timeout fallback
+    this.timeoutHandle = window.setTimeout(() => {
+      if (!this.awaitingShip) return;
+      this.status("Timeout waiting for ship. You can retry.");
+      this.cleanupGenerationListeners();
       this.generateInFlight = false;
+      this.awaitingShip = false;
       this.setBusy(false);
+    }, 30000);
+  }
+
+  private formatMsg(raw: any) {
+    if (typeof raw === "string") return raw;
+    if (typeof raw?.message === "string") return raw.message;
+    try {
+      return JSON.stringify(raw);
+    } catch {
+      return String(raw);
     }
   }
 
   private onWsInfo = (ev: CustomEvent) => {
-    if (!this.awaitingShip) return; // ignore after done
-    const raw = ev.detail;
-    const msg =
-      typeof raw === "string"
-        ? raw
-        : typeof raw?.message === "string"
-        ? raw.message
-        : (() => {
-            try {
-              return JSON.stringify(raw);
-            } catch {
-              return String(raw);
-            }
-          })();
-    // eslint-disable-next-line no-console
-    console.log("info:", msg);
-    this.addInfo(msg);
+    if (!this.awaitingShip) return;
+    this.addInfo(this.formatMsg(ev.detail));
   };
 
   private onWsError = (ev: CustomEvent) => {
-    const raw = ev.detail;
-    const msg =
-      typeof raw === "string"
-        ? raw
-        : typeof raw?.message === "string"
-        ? raw.message
-        : (() => {
-            try {
-              return JSON.stringify(raw);
-            } catch {
-              return String(raw);
-            }
-          })();
+    const msg = this.formatMsg(ev.detail);
     this.status("Error: " + msg, "error");
     this.cleanupGenerationListeners();
     this.generateInFlight = false;
@@ -324,16 +295,15 @@ export class SplashScene extends Phaser.Scene {
 
   private renderInfo() {
     if (!this.infoEl) return;
-    // Clear
     this.infoEl.textContent = "";
     const wrap = document.createElement("div");
     wrap.className = "info-log-list";
-    for (const item of this.infoMessages) {
+    this.infoMessages.forEach((item) => {
       const line = document.createElement("div");
       line.className = "info-item";
       line.textContent = item;
       wrap.appendChild(line);
-    }
+    });
     this.infoEl.appendChild(wrap);
   }
 
@@ -356,10 +326,8 @@ export class SplashScene extends Phaser.Scene {
 
   private startGame() {
     // Clean up DOM overlay
-    if (this.overlayRoot) {
-      this.overlayRoot.remove();
-      this.overlayRoot = undefined;
-    }
+    this.overlayRoot?.remove();
+    this.overlayRoot = undefined;
     this.scene.start("main");
   }
 }

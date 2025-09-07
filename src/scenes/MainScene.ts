@@ -96,12 +96,8 @@ export class MainScene extends Phaser.Scene {
     this.grid?.updateScroll();
     // Hard follow: center camera exactly on player's ship each frame (no smoothing/interp)
     const id = getClientId();
-    if (id) {
-      const mySprite = this.remoteSprites.get(id);
-      if (mySprite) {
-        this.cameras.main.centerOn(mySprite.x, mySprite.y);
-      }
-    }
+    const mySprite = id ? this.remoteSprites.get(id) : undefined;
+    if (mySprite) this.cameras.main.centerOn(mySprite.x, mySprite.y);
     // Update off-screen ship indicators (HUD)
     this.indicators.update(this.remoteSprites, getRemoteShips(), id);
     // Keep health bars aligned to ship sprites every frame (cheap)
@@ -289,12 +285,8 @@ export class MainScene extends Phaser.Scene {
       // Cleanup any stray untracked duplicates (safety net)
       this.children.list.forEach((obj) => {
         const go = obj as any;
-        if (go?.getData && go.getData("shipId")) {
-          const id: string = go.getData("shipId");
-          if (!this.remoteSprites.has(id)) {
-            go.destroy();
-          }
-        }
+        const id: string | undefined = go?.getData?.("shipId");
+        if (id && !this.remoteSprites.has(id)) go.destroy();
       });
 
       // After ship sync, also sync projectiles (ships may influence styling)

@@ -77,13 +77,12 @@ export class OffscreenIndicators {
     const centerY = halfH;
     const active = new Set<string>();
 
-    for (const [id, sprite] of sprites) {
-      if (id === clientId) continue;
+    sprites.forEach((sprite, id) => {
+      if (id === clientId) return;
       const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
-      if (snap && snap.health <= 0) {
-        this.containers.get(id)?.setVisible(false);
-        continue;
-      }
+      if (snap && snap.health <= 0)
+        return this.containers.get(id)?.setVisible(false);
+
       const dxWorld = sprite.x - cam.midPoint.x;
       const dyWorld = sprite.y - cam.midPoint.y;
       const sx = dxWorld * cam.zoom;
@@ -92,15 +91,11 @@ export class OffscreenIndicators {
       const absY = Math.abs(sy);
       const insideX = absX <= halfW - margin;
       const insideY = absY <= halfH - margin;
-      if (insideX && insideY) {
-        this.containers.get(id)?.setVisible(false);
-        continue;
-      }
+      if (insideX && insideY) return this.containers.get(id)?.setVisible(false);
+
       const denom = Math.max(absX / (halfW - margin), absY / (halfH - margin));
-      if (denom === 0) {
-        this.containers.get(id)?.setVisible(false);
-        continue;
-      }
+      if (denom === 0) return this.containers.get(id)?.setVisible(false);
+
       const nx = sx / denom;
       const ny = sy / denom;
       const screenX = centerX + nx;
@@ -127,11 +122,11 @@ export class OffscreenIndicators {
         label.setVisible(false);
       }
       active.add(id);
-    }
+    });
 
-    for (const [id, cont] of this.containers) {
+    this.containers.forEach((cont, id) => {
       if (!active.has(id)) cont.setVisible(false);
-    }
+    });
   }
 
   destroyFor(id: string) {

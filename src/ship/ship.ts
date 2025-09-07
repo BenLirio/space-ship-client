@@ -67,23 +67,19 @@ export function makeNearBlackTransparent(
       const g = data[i + 1];
       const b = data[i + 2];
       const avg = (r + g + b) / 3;
-      if (avg <= threshold) {
-        const factor = avg / threshold; // 0..1
-        data[i + 3] = Math.round(data[i + 3] * factor);
-      }
+      if (avg > threshold) continue;
+      const factor = avg / threshold; // 0..1
+      data[i + 3] = Math.round(data[i + 3] * factor);
     }
 
     // 2. Hard clear bottom-right watermark area (normalized 0.95..1 range)
     if (clearWatermark) {
       const startX = Math.floor(w * 0.91);
       const startY = Math.floor(h * 0.91);
-      for (let y = startY; y < h; y++) {
-        for (let x = startX; x < w; x++) {
-          const idx = (y * w + x) * 4;
-          data[idx] = 0;
-          data[idx + 1] = 0;
-          data[idx + 2] = 0;
-          data[idx + 3] = 0; // fully transparent
+      for (let py = startY; py < h; py++) {
+        for (let px = startX; px < w; px++) {
+          const idx = (py * w + px) * 4;
+          data[idx + 3] = 0; // fully transparent (RGB ignored)
         }
       }
     }
@@ -91,11 +87,7 @@ export function makeNearBlackTransparent(
     // Replace existing texture with canvas version.
     scene.textures.remove(key);
     scene.textures.addCanvas(key, canvas);
-  } catch (e) {
-    // Likely a CORS-tainted canvas; skip silently.
-    // eslint-disable-next-line no-console
-    console.warn("[texture] transparency post-process skipped", e);
-  }
+  } catch {}
 }
 
 // Removed old client-side movement helper (server is authoritative now)
