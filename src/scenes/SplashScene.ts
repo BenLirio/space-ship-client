@@ -221,8 +221,14 @@ export class SplashScene extends Phaser.Scene {
     if (!btn) return;
     const quota = this.shipQuota;
     const baseText = (btn as any).dataset.originalText || "Generate Ship";
-    if (quota && typeof quota.remaining === "number" && typeof quota.cap === "number") {
-      btn.textContent = `${baseText} (${Math.max(0, quota.remaining)}/${quota.cap})`;
+    if (
+      quota &&
+      typeof quota.remaining === "number" &&
+      typeof quota.cap === "number"
+    ) {
+      btn.textContent = `${baseText} (${Math.max(0, quota.remaining)}/${
+        quota.cap
+      })`;
       btn.disabled = this.generateInFlight || quota.remaining <= 0;
     } else {
       btn.textContent = baseText;
