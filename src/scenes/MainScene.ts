@@ -9,6 +9,8 @@ import { ProjectileRenderer } from "./main/ProjectileRenderer";
 import { MobileControls } from "./shared/MobileControls";
 import { InputPublisher } from "./shared/InputPublisher";
 import { RemoteShipsManager } from "./shared/RemoteShipsManager";
+import { ScoreboardOverlay } from "./main/ScoreboardOverlay";
+import { getScoreboard } from "../clientState";
 
 export class MainScene extends Phaser.Scene {
   private inputPub!: InputPublisher;
@@ -21,6 +23,7 @@ export class MainScene extends Phaser.Scene {
   private grid?: BackgroundGrid;
   private ships!: RemoteShipsManager;
   private projectiles!: ProjectileRenderer;
+  private scoreboard!: ScoreboardOverlay;
 
   constructor() {
     super("main");
@@ -38,11 +41,14 @@ export class MainScene extends Phaser.Scene {
     this.inputPub = new InputPublisher(this, this.mobile);
     this.ships = new RemoteShipsManager(this);
     this.projectiles = new ProjectileRenderer(this);
+    this.scoreboard = new ScoreboardOverlay(this);
 
     // Subscribe to remote ship and projectile updates
     this.unsubscribe = subscribe(() => {
       this.ships.sync();
       this.syncProjectiles();
+      // Re-render scoreboard when state changes
+      this.scoreboard.render(getScoreboard());
     });
     this.ships.sync();
     this.syncProjectiles();
@@ -82,5 +88,6 @@ export class MainScene extends Phaser.Scene {
     this.mobile?.destroy();
     this.ships?.destroy();
     this.projectiles?.destroy();
+    this.scoreboard?.destroy();
   }
 }

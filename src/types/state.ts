@@ -27,3 +27,16 @@ export interface ProjectileSnapshot {
   rotation: number; // radians
   createdAt: number; // epoch ms
 }
+
+// Scoreboard data structures from server
+export interface ScoreboardItem {
+  id: string;
+  name: string;
+  score: number;
+  shipImageUrl?: string;
+}
+
+export interface ScoreboardListResponse {
+  items: ScoreboardItem[];
+  count: number;
+}

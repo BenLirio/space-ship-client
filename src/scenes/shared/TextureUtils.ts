@@ -9,9 +9,15 @@ export async function ensureTextureFor(
   fallbackKey = "ship"
 ): Promise<string> {
   if (!url) return fallbackKey;
-  const key = "remote-" + btoa(url).replace(/=+$/g, "");
+  const key =
+    "remote-" +
+    btoa(url).replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_");
   if (scene.textures.exists(key)) return key;
   return await new Promise<string>((resolve) => {
+    // Ensure cross-origin images can be used and processed on canvas
+    try {
+      (scene.load as any).setCORS?.("anonymous");
+    } catch {}
     scene.load.image(key, url);
     scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
       if (scene.textures.exists(key)) {

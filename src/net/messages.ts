@@ -44,10 +44,27 @@ const ErrorMsg = z.object({
   payload: z.unknown(),
 });
 
+// Scoreboard broadcast
+const Scoreboard = z.object({
+  type: z.literal("scoreboard"),
+  payload: z.object({
+    items: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        score: z.number(),
+        shipImageUrl: z.string().optional(),
+      })
+    ),
+    count: z.number(),
+  }),
+});
+
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   Connected,
   Info,
   GameState,
+  Scoreboard,
   ErrorMsg,
 ]);
 
@@ -67,6 +84,7 @@ type HandlerMap = Partial<{
   connected: (msg: z.infer<typeof Connected>) => void;
   info: (msg: z.infer<typeof Info>) => void;
   gameState: (msg: z.infer<typeof GameState>) => void;
+  scoreboard: (msg: z.infer<typeof Scoreboard>) => void;
   error: (msg: z.infer<typeof ErrorMsg>) => void;
 }>;
 

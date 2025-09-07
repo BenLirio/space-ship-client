@@ -5,6 +5,9 @@ export function preloadShip(scene: Phaser.Scene) {
   const url =
     "https://space-ship-sprites.s3.amazonaws.com/generated/3ca83705-99b6-4fb9-857f-d243b2773172.png";
   if (scene.textures.exists("ship")) return; // already loaded
+  try {
+    (scene.load as any).setCORS?.("anonymous");
+  } catch {}
   scene.load.image("ship", url);
   scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
     if (scene.textures.exists("ship")) {

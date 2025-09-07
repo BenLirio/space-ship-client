@@ -6,6 +6,7 @@ import {
   InputSnapshot,
   ProjectileSnapshot,
 } from "./types/state";
+import type { ScoreboardItem } from "./types/state";
 
 let _clientId: string | undefined;
 // Map of remote ship id -> snapshot
@@ -13,6 +14,7 @@ let _remoteShips: Record<string, RemoteShipSnapshot> = {};
 let _inputSnapshot: InputSnapshot | undefined;
 // Map projectile id -> projectile snapshot
 let _projectiles: Record<string, ProjectileSnapshot> = {};
+let _scoreboard: ScoreboardItem[] = [];
 
 const listeners = new Set<Listener>();
 
@@ -68,4 +70,14 @@ export function subscribe(fn: Listener) {
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+// Scoreboard state
+export function setScoreboard(items: ScoreboardItem[]) {
+  _scoreboard = items;
+  notify();
+}
+
+export function getScoreboard(): ScoreboardItem[] {
+  return _scoreboard;
 }

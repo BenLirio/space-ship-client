@@ -10,6 +10,7 @@ import {
   updateProjectiles,
 } from "./clientState";
 import { createRouter, parseMessage } from "./net/messages";
+import { setScoreboard } from "./clientState";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -48,6 +49,12 @@ function connectWebSocket() {
     gameState: (msg) => {
       updateRemoteShips(msg.payload.ships as any);
       updateProjectiles(msg.payload.projectiles as any);
+    },
+    scoreboard: (msg) => {
+      setScoreboard(msg.payload.items as any);
+      window.dispatchEvent(
+        new CustomEvent("ws-scoreboard", { detail: msg.payload })
+      );
     },
     error: (msg) => {
       // eslint-disable-next-line no-console
