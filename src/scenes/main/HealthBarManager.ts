@@ -96,9 +96,8 @@ export class HealthBarManager {
     killsLabel.x = 0;
     killsLabel.y = -8;
     const nm = name.trim();
-    const maxChars = 18;
-    const text = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
-    nameLabel.setText(text);
+    // Show full name without truncation
+    nameLabel.setText(nm);
     nameLabel.x = 0;
     nameLabel.y = -22;
     nameLabel.setVisible(!!nm);

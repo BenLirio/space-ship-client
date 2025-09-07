@@ -373,17 +373,8 @@ export class ScoreboardOverlay {
         const nameText = row.list.find(
           (c: any) => c.getData?.("kind") === "name"
         ) as Phaser.GameObjects.Text;
-        // estimate chars by column width (monospace ~7px/char at 13px font)
-        const approxCharW = 7.2;
-        const maxNameChars = Math.max(
-          4,
-          Math.floor((COLS.name - 8) / approxCharW)
-        );
-        const nameStr =
-          it.name.length > maxNameChars
-            ? it.name.slice(0, maxNameChars - 1) + "…"
-            : it.name;
-        nameText.setText(nameStr);
+        // Show full name without truncation; allow it to extend within column
+        nameText.setText(it.name);
         const scoreText = row.list.find(
           (c: any) => c.getData?.("kind") === "score"
         ) as Phaser.GameObjects.Text;

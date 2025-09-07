@@ -115,9 +115,8 @@ export class OffscreenIndicators {
       arrow.setScale(maxScale - t * (maxScale - minScale));
       const nm = snap ? snap.name.trim() : "";
       if (nm) {
-        const maxChars = 18;
-        const txt = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
-        label.setText(txt).setVisible(true);
+        // Show full name without truncation
+        label.setText(nm).setVisible(true);
       } else {
         label.setVisible(false);
       }
