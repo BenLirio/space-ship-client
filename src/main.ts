@@ -46,6 +46,13 @@ function connectWebSocket() {
       console.log("[ws][info]", msg.payload);
       window.dispatchEvent(new CustomEvent("ws-info", { detail: msg.payload }));
     },
+    shipQuota: (msg) => {
+      // Broadcast quota updates so Splash UI can update the Generate button.
+      (window as any).SHIP_QUOTA = msg.payload; // debug
+      window.dispatchEvent(
+        new CustomEvent("ws-shipQuota", { detail: msg.payload })
+      );
+    },
     gameState: (msg) => {
       updateRemoteShips(msg.payload.ships as any);
       updateProjectiles(msg.payload.projectiles as any);

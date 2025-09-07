@@ -12,6 +12,7 @@ export class SplashScene extends Phaser.Scene {
   private awaitingShip = false;
   private awaitedId?: string;
   private timeoutHandle?: number;
+  private shipQuota?: { remaining: number; cap: number };
 
   constructor() {
     super("splash");
@@ -34,12 +35,35 @@ export class SplashScene extends Phaser.Scene {
     ui.root.querySelector("form")?.addEventListener("submit", (e) => {
       e.preventDefault();
       if (this.generateInFlight) return;
+      if (this.shipQuota && this.shipQuota.remaining <= 0) {
+        this.status("Ship quota reached. Try default or come back later.");
+        return;
+      }
       this.handleGenerate(this.ui?.input.value.trim() || "");
     });
     this.ui.defaultBtn.addEventListener("click", () => {
       if (this.generateInFlight) return;
       this.notifyStartWithDefault();
       this.startGame();
+    });
+
+    // Listen for quota updates immediately
+    window.addEventListener("ws-shipQuota", this.onShipQuota as any);
+    // Apply initial value if already received
+    const initial = (window as any).SHIP_QUOTA as
+      | { remaining: number; cap: number }
+      | undefined;
+    if (initial) {
+      this.shipQuota = initial;
+      this.updateGenerateButtonQuota();
+    } else {
+      // Ensure base label is set
+      this.updateGenerateButtonQuota();
+    }
+
+    // Cleanup on scene shutdown
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener("ws-shipQuota", this.onShipQuota as any);
     });
   }
 
@@ -55,6 +79,10 @@ export class SplashScene extends Phaser.Scene {
   private handleGenerate(prompt: string) {
     if (!prompt) {
       this.status("Enter a prompt or use default.");
+      return;
+    }
+    if (this.shipQuota && this.shipQuota.remaining <= 0) {
+      this.status("No ships remaining. Try default.");
       return;
     }
     // Reset previous info messages for a fresh attempt
@@ -108,6 +136,12 @@ export class SplashScene extends Phaser.Scene {
     this.generateInFlight = false;
     this.awaitingShip = false;
     this.setBusy(false);
+  };
+
+  private onShipQuota = (ev: CustomEvent) => {
+    const payload = ev.detail as { remaining: number; cap: number };
+    this.shipQuota = payload;
+    this.updateGenerateButtonQuota();
   };
 
   private checkForGeneratedShip() {
@@ -170,14 +204,29 @@ export class SplashScene extends Phaser.Scene {
   private setBusy(isBusy: boolean) {
     const btn = this.ui?.generateBtn;
     const def = this.ui?.defaultBtn;
-    if (btn) btn.disabled = isBusy;
+    if (btn) btn.disabled = isBusy || (this.shipQuota?.remaining ?? 1) <= 0;
     if (def) def.disabled = isBusy;
     if (isBusy && btn) {
-      (btn as any).dataset.originalText = btn.textContent || "";
+      if (!(btn as any).dataset.originalText) {
+        (btn as any).dataset.originalText = btn.textContent || "";
+      }
       btn.textContent = "Generating…";
-    } else if (!isBusy && btn && (btn as any).dataset.originalText) {
-      btn.textContent = (btn as any).dataset.originalText;
-      delete (btn as any).dataset.originalText;
+    } else if (!isBusy && btn) {
+      this.updateGenerateButtonQuota();
+    }
+  }
+
+  private updateGenerateButtonQuota() {
+    const btn = this.ui?.generateBtn;
+    if (!btn) return;
+    const quota = this.shipQuota;
+    const baseText = (btn as any).dataset.originalText || "Generate Ship";
+    if (quota && typeof quota.remaining === "number" && typeof quota.cap === "number") {
+      btn.textContent = `${baseText} (${Math.max(0, quota.remaining)}/${quota.cap})`;
+      btn.disabled = this.generateInFlight || quota.remaining <= 0;
+    } else {
+      btn.textContent = baseText;
+      btn.disabled = !!this.generateInFlight;
     }
   }
 

@@ -9,6 +9,15 @@ const Connected = z.object({
 
 const Info = z.object({ type: z.literal("info"), payload: z.unknown() });
 
+// New: per-IP ship generation quota
+const ShipQuota = z.object({
+  type: z.literal("shipQuota"),
+  payload: z.object({
+    remaining: z.number().int().nonnegative(),
+    cap: z.number().int().positive(),
+  }),
+});
+
 const GameState = z.object({
   type: z.literal("gameState"),
   payload: z.object({
@@ -63,6 +72,7 @@ const Scoreboard = z.object({
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   Connected,
   Info,
+  ShipQuota,
   GameState,
   Scoreboard,
   ErrorMsg,
@@ -83,6 +93,7 @@ export function parseMessage(raw: unknown): ServerMessage | undefined {
 type HandlerMap = Partial<{
   connected: (msg: z.infer<typeof Connected>) => void;
   info: (msg: z.infer<typeof Info>) => void;
+  shipQuota: (msg: z.infer<typeof ShipQuota>) => void;
   gameState: (msg: z.infer<typeof GameState>) => void;
   scoreboard: (msg: z.infer<typeof Scoreboard>) => void;
   error: (msg: z.infer<typeof ErrorMsg>) => void;
