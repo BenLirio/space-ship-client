@@ -84,7 +84,7 @@ export class SplashScene extends Phaser.Scene {
       this.generateInFlight = false;
       this.awaitingShip = false;
       this.setBusy(false);
-    }, 30000);
+    }, 60000);
   }
 
   private formatMsg(raw: any) {
