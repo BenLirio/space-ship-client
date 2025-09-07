@@ -28,6 +28,16 @@
   <!-- SplashScene now handles prompt / generation UI -->
   <script type="module" src="/src/main.ts"></script>
   <div id="rotate-overlay">Rotate your device to landscape to play.</div>
+  <!-- Ko-fi floating widget: load at parse-time to avoid document.write clobbering -->
+  <script src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
+  <script>
+    try {
+      kofiwidget2.init('Help offset Gemini costs', '#72a4f2', 'E1E31KW60Y');
+      kofiwidget2.draw();
+    } catch (e) {
+      // noop
+    }
+  </script>
 </body>
 
 </html>

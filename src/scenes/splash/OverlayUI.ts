@@ -57,17 +57,16 @@ export function createOverlay(): OverlayElements {
   discord.rel = "noopener";
   discord.setAttribute("aria-label", "Join our Discord (opens in new tab)");
   discord.textContent = "Join our Discord";
+  // Add a Ko-fi support link (fallback in case widget doesn't render)
+  const kofi = document.createElement("a");
+  kofi.className = "kofi-link";
+  kofi.href = "https://ko-fi.com/E1E31KW60Y";
+  kofi.target = "_blank";
+  kofi.rel = "noopener";
+  kofi.setAttribute("aria-label", "Support on Ko-fi (opens in new tab)");
+  kofi.textContent = "Donate (Help offset Gemini Costs)";
 
-  const banana = document.createElement("a");
-  banana.className = "banana-link";
-  banana.href =
-    "https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/";
-  banana.target = "_blank";
-  banana.rel = "noopener";
-  banana.setAttribute("aria-label", "Model info (opens in new tab)");
-  banana.textContent = "🍌 uses nano banana";
-
-  starWrap.append(gh, discord, banana);
+  starWrap.append(gh, discord, kofi);
   header.append(h1, p, starWrap);
 
   const form = document.createElement("form");

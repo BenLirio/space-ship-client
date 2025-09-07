@@ -109,6 +109,28 @@ body {
 .gh-star-wrap .banana-link:active {
   transform: translateY(2px);
 }
+.gh-star-wrap .kofi-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #72a4f2;
+  color: #08121e;
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid #4a83d8;
+  box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+  transition: background 0.2s, transform 0.2s, filter 0.2s;
+}
+.gh-star-wrap .kofi-link:hover {
+  filter: brightness(1.1);
+}
+.gh-star-wrap .kofi-link:active {
+  transform: translateY(2px);
+}
 .splash-form {
   display: flex;
   flex-direction: column;
