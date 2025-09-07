@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { preloadShip } from "../ship/ship";
+import { ensureDefaultShipTexture } from "../ship/ship";
 import { subscribe, getClientId, getProjectiles } from "../clientState";
 import { RemoteShipSnapshot } from "../types/state";
 
@@ -30,7 +30,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    preloadShip(this);
+    ensureDefaultShipTexture(this);
   }
 
   create() {

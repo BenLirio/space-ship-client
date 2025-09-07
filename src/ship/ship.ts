@@ -1,19 +1,35 @@
 import Phaser from "phaser";
 
-export function preloadShip(scene: Phaser.Scene) {
-  // Load default ship texture
-  const url =
-    "https://space-ship-sprites.s3.amazonaws.com/generated/3ca83705-99b6-4fb9-857f-d243b2773172.png";
-  if (scene.textures.exists("ship")) return; // already loaded
-  try {
-    (scene.load as any).setCORS?.("anonymous");
-  } catch {}
-  scene.load.image("ship", url);
-  scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
-    if (scene.textures.exists("ship")) {
-      makeNearBlackTransparent(scene, "ship");
-    }
-  });
+// Ensure a built-in fallback 'ship' texture exists without network preloading.
+// Draws a simple triangle on an offscreen Graphics and registers it as 'ship'.
+export function ensureDefaultShipTexture(scene: Phaser.Scene) {
+  if (scene.textures.exists("ship")) return;
+  const size = SHIP_TARGET_MAX_SIZE; // square canvas
+  const w = size;
+  const h = size;
+  const g = scene.add.graphics({ x: 0, y: 0 });
+  g.setVisible(false);
+  // Background transparent by default; draw ship body
+  g.clear();
+  // Body
+  g.fillStyle(0xffffff, 1);
+  g.beginPath();
+  g.moveTo(w / 2, 0);
+  g.lineTo(w, h);
+  g.lineTo(0, h);
+  g.closePath();
+  g.fillPath();
+  // Cockpit/accent
+  g.fillStyle(0x33c3ff, 1);
+  const cx = w / 2;
+  const cy = h * 0.45;
+  g.fillCircle(cx, cy, Math.max(3, size * 0.06));
+  // Thruster accent
+  g.fillStyle(0xff9933, 1);
+  g.fillTriangle(w * 0.35, h * 0.98, w * 0.65, h * 0.98, w * 0.5, h * 0.86);
+  // Register as texture and cleanup
+  g.generateTexture("ship", w, h);
+  g.destroy();
 }
 
 export function createShipSprite(

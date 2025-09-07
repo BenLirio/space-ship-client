@@ -33,3 +33,43 @@ export async function ensureTextureFor(
     scene.load.start();
   });
 }
+
+// Direct, non-loader image fetch for UI/scoreboard thumbnails.
+// Does NOT use Phaser's Loader; instead, creates an HTMLImageElement on demand.
+// Returns the texture key (or fallback) once available.
+const pendingDirect: Map<string, Promise<string>> = new Map();
+export async function ensureTextureForDirect(
+  scene: Phaser.Scene,
+  url?: string,
+  fallbackKey = "ship"
+): Promise<string> {
+  if (!url) return fallbackKey;
+  const key =
+    "remote-" +
+    btoa(url).replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  if (scene.textures.exists(key)) return key;
+  if (pendingDirect.has(key)) return pendingDirect.get(key)!;
+  const p = new Promise<string>((resolve) => {
+    const img = new Image();
+    // Allow canvas processing (server must send proper CORS headers)
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        scene.textures.addImage(key, img);
+        makeNearBlackTransparent(scene, key, { clearWatermarkBox: true });
+        resolve(key);
+      } catch {
+        resolve(fallbackKey);
+      } finally {
+        pendingDirect.delete(key);
+      }
+    };
+    img.onerror = () => {
+      pendingDirect.delete(key);
+      resolve(fallbackKey);
+    };
+    img.src = url;
+  });
+  pendingDirect.set(key, p);
+  return p;
+}

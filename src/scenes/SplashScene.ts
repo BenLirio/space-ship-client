@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import { preloadShip } from "../ship/ship";
 import { logConfigOnce } from "../config";
 import { subscribe, getClientId, getRemoteShips } from "../clientState";
 import { createOverlay, OverlayElements } from "./splash/OverlayUI";
@@ -19,7 +18,7 @@ export class SplashScene extends Phaser.Scene {
   }
 
   preload() {
-    preloadShip(this); // base triangle
+    // No-op; default texture is created in the main scene as needed.
   }
 
   create() {
