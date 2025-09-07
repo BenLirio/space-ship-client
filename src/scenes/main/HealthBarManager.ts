@@ -65,7 +65,7 @@ export class HealthBarManager {
     sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
     health: number,
     kills: number,
-    name?: string
+    name: string
   ) {
     const {
       container,
@@ -74,7 +74,7 @@ export class HealthBarManager {
       kills: killsLabel,
       name: nameLabel,
     } = this.getOrCreate(id);
-    const h = Phaser.Math.Clamp(health ?? 100, 0, 100);
+    const h = Phaser.Math.Clamp(health, 0, 100);
     const maxW = Math.max(48, Math.round(sprite.displayWidth || 60));
     const height = 6;
     bg.setSize(maxW, height);
@@ -91,11 +91,11 @@ export class HealthBarManager {
     container.setPosition(sprite.x, sprite.y + offsetY);
     container.setVisible(true);
     container.setDepth(sprite.depth + 1);
-    const k = Math.max(0, Math.floor(kills ?? 0));
+    const k = Math.max(0, Math.floor(kills));
     killsLabel.setText(String(k));
     killsLabel.x = 0;
     killsLabel.y = -8;
-    const nm = (name ?? "").trim();
+    const nm = name.trim();
     const maxChars = 18;
     const text = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
     nameLabel.setText(text);

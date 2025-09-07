@@ -287,7 +287,7 @@ export class SplashScene extends Phaser.Scene {
     if (!id) return;
     const ships = getRemoteShips();
     const mine = (ships as any)[id];
-    if (mine && mine.appearance?.shipImageUrl) {
+    if (mine && mine.appearance.shipImageUrl) {
       this.cleanupGenerationListeners();
       this.awaitingShip = false;
       this.generateInFlight = false;

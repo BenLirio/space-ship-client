@@ -18,13 +18,10 @@ const GameState = z.object({
           position: z.object({ x: z.number(), y: z.number() }),
           rotation: z.number(),
         }),
-        appearance: z
-          .object({ shipImageUrl: z.string().optional() })
-          .partial()
-          .optional(),
-        health: z.number().optional(),
-        kills: z.number().optional(),
-        name: z.string().optional(),
+        appearance: z.object({ shipImageUrl: z.string() }),
+        health: z.number(),
+        kills: z.number(),
+        name: z.string(),
       }) as unknown as z.ZodType<RemoteShipSnapshot>
     ),
     projectiles: z

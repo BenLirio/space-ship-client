@@ -251,7 +251,7 @@ export class MainScene extends Phaser.Scene {
         if (!snap) continue;
         let sprite = this.remoteSprites.get(id);
         const desiredTexKey = await this.ensureTextureFor(
-          snap.appearance?.shipImageUrl
+          snap.appearance.shipImageUrl
         );
 
         if (!sprite) {
@@ -281,13 +281,7 @@ export class MainScene extends Phaser.Scene {
         sprite.rotation = snap.physics.rotation;
 
         // Update health bar visuals
-        this.healthBars.refresh(
-          id,
-          sprite,
-          typeof snap.health === "number" ? snap.health : 100,
-          typeof snap.kills === "number" ? snap.kills : 0,
-          (snap as any).name
-        );
+        this.healthBars.refresh(id, sprite, snap.health, snap.kills, snap.name);
 
         // No smooth follow attachment needed; camera centers on player each update.
       }

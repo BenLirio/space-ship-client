@@ -2,13 +2,13 @@
 
 export interface RemoteShipSnapshot {
   physics: { position: { x: number; y: number }; rotation: number };
-  appearance?: { shipImageUrl?: string };
-  // New: health percentage [0..100]
-  health?: number;
-  // New: number of kills for this ship
-  kills?: number;
-  // New: display name for the ship
-  name?: string;
+  appearance: { shipImageUrl: string };
+  // Health percentage [0..100]
+  health: number;
+  // Number of kills for this ship
+  kills: number;
+  // Display name for the ship (may be empty string)
+  name: string;
 }
 
 export type Listener = () => void;

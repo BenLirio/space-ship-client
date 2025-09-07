@@ -27,7 +27,7 @@ export class ProjectileRenderer {
     const allIds = Object.keys(snapshots);
     const ids = new Set(
       allIds
-        .map((id) => ({ id, createdAt: snapshots[id]?.createdAt || 0 }))
+        .map((id) => ({ id, createdAt: snapshots[id].createdAt }))
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, ProjectileRenderer.MAX_RENDERED)
         .map((o) => o.id)

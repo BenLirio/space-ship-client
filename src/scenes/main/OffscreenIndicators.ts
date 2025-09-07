@@ -80,7 +80,7 @@ export class OffscreenIndicators {
     for (const [id, sprite] of sprites) {
       if (id === clientId) continue;
       const snap: RemoteShipSnapshot | undefined = (snapshots as any)[id];
-      if (snap && typeof snap.health === "number" && snap.health <= 0) {
+      if (snap && snap.health <= 0) {
         this.containers.get(id)?.setVisible(false);
         continue;
       }
@@ -118,7 +118,7 @@ export class OffscreenIndicators {
       const far = 4000;
       const t = Phaser.Math.Clamp((dist - near) / (far - near), 0, 1);
       arrow.setScale(maxScale - t * (maxScale - minScale));
-      const nm = snap && typeof snap.name === "string" ? snap.name.trim() : "";
+      const nm = snap ? snap.name.trim() : "";
       if (nm) {
         const maxChars = 18;
         const txt = nm.length > maxChars ? nm.slice(0, maxChars - 1) + "…" : nm;
